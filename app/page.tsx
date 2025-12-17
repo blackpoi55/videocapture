@@ -253,6 +253,7 @@ const selectStyles: any = {
   option: (base: any, state: any) => ({
     ...base,
     backgroundColor: state.isFocused ? "rgba(255,255,255,0.08)" : "transparent",
+    color: "rgba(255,255,255,0.92)",
   }),
   singleValue: (base: any) => ({ ...base, color: "rgba(255,255,255,0.92)" }),
   input: (base: any) => ({ ...base, color: "rgba(255,255,255,0.92)" }),
@@ -311,8 +312,9 @@ function ImagePickerModal(props: {
   chooseDir: DirHandle | null;
   onRefreshAfter: () => Promise<void>;
   onEditChosen: (file: FileItem) => void;
+  refreshSignal?: number;
 }) {
-  const { open, onClose, originalDir, chooseDir, onRefreshAfter, onEditChosen } = props;
+  const { open, onClose, originalDir, chooseDir, onRefreshAfter, onEditChosen, refreshSignal } = props;
   const [left, setLeft] = useState<FileItem[]>([]);
   const [right, setRight] = useState<FileItem[]>([]);
   const [busy, setBusy] = useState(false);
@@ -329,7 +331,7 @@ function ImagePickerModal(props: {
   useEffect(() => {
     if (!open) return;
     refresh().catch(() => { });
-  }, [open, refresh]);
+  }, [open, refresh, refreshSignal]);
 
   const copyToChoose = useCallback(
     async (name: string) => {
@@ -817,7 +819,6 @@ function ImageEditorModal(props: {
     applyStyleToActive();
   }, [strokeW, applyStyleToActive]);
 
-
   useEffect(() => {
     if (!open) return;
     // reset stacks per open
@@ -860,6 +861,67 @@ function ImageEditorModal(props: {
     c.requestRenderAll();
     pushState();
   }, [pushState]);
+
+  const rotateCanvas = useCallback(
+    (dir: "cw" | "ccw") => {
+      const c = canvasRef.current;
+      const fabric = fabricRef.current as any;
+      if (!c || !fabric) return;
+      const delta = dir === "cw" ? 90 : -90;
+      const rad = fabric.util.degreesToRadians(delta);
+      const oldW = c.getWidth();
+      const oldH = c.getHeight();
+      const newW = oldH;
+      const newH = oldW;
+      const oldCenter = new fabric.Point(oldW / 2, oldH / 2);
+      const newCenter = new fabric.Point(newW / 2, newH / 2);
+
+      c.getObjects().forEach((o: any) => {
+        const center = o.getCenterPoint();
+        const rotated = fabric.util.rotatePoint(center, oldCenter, rad);
+        const translated = new fabric.Point(
+          rotated.x - oldCenter.x + newCenter.x,
+          rotated.y - oldCenter.y + newCenter.y
+        );
+        o.rotate((o.angle || 0) + delta);
+        o.setPositionByOrigin(translated, "center", "center");
+      });
+
+      c.setWidth(newW);
+      c.setHeight(newH);
+      c.calcOffset();
+      c.requestRenderAll();
+      pushState();
+    },
+    [pushState]
+  );
+
+  const flipCanvas = useCallback(
+    (axis: "x" | "y") => {
+      const c = canvasRef.current;
+      if (!c) return;
+      const w = c.getWidth();
+      const h = c.getHeight();
+      c.getObjects().forEach((o: any) => {
+        const ow = o.getScaledWidth?.() ?? o.width ?? 0;
+        const oh = o.getScaledHeight?.() ?? o.height ?? 0;
+        if (axis === "x") {
+          o.set({
+            left: w - (o.left ?? 0) - ow,
+            flipX: !o.flipX,
+          });
+        } else {
+          o.set({
+            top: h - (o.top ?? 0) - oh,
+            flipY: !o.flipY,
+          });
+        }
+      });
+      c.requestRenderAll();
+      pushState();
+    },
+    [pushState]
+  );
 
   const doDeleteActive = useCallback(() => {
     const c = canvasRef.current;
@@ -1099,6 +1161,25 @@ function ImageEditorModal(props: {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 space-y-2">
+              <div className="text-xs text-white/60">Canvas</div>
+              <div className="grid grid-cols-2 gap-2">
+                <PillButton onClick={() => rotateCanvas("ccw")} disabled={busy}>
+                  Rotate -90°
+                </PillButton>
+                <PillButton onClick={() => rotateCanvas("cw")} disabled={busy}>
+                  Rotate +90°
+                </PillButton>
+                <PillButton onClick={() => flipCanvas("x")} disabled={busy}>
+                  Flip Horizontal
+                </PillButton>
+                <PillButton onClick={() => flipCanvas("y")} disabled={busy}>
+                  Flip Vertical
+                </PillButton>
+              </div>
+              <div className="text-[11px] text-white/45">หมุน/กลับด้านทั้งภาพรวมวัตถุที่วางไว้</div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 space-y-2">
               <div className="text-xs text-white/60">Crop</div>
               <PillButton onClick={onCropButton} disabled={busy}>
                 Crop (ลาก/ปรับกรอบ แล้วกดซ้ำเพื่อ Apply)
@@ -1129,11 +1210,14 @@ function Thumb({ file }: { file: FileItem }) {
 
   useEffect(() => {
     let alive = true;
+    let currentUrl: string | null = null;
     (async () => {
       try {
         const f = await file.handle.getFile();
         const u = URL.createObjectURL(f);
         if (!alive) return;
+        if (currentUrl) URL.revokeObjectURL(currentUrl);
+        currentUrl = u;
         setUrl(u);
       } catch {
         setUrl(null);
@@ -1141,10 +1225,10 @@ function Thumb({ file }: { file: FileItem }) {
     })();
     return () => {
       alive = false;
-      if (url) URL.revokeObjectURL(url);
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file.name]);
+  }, [file.name, file.lastModified]);
 
   const isImg = isImageType(file.type, file.name);
   return (
@@ -1195,6 +1279,7 @@ export default function Page() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [preview, setPreview] = useState<FileItem | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [pickerRefreshTick, setPickerRefreshTick] = useState(0);
 
   // Camera
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -1206,8 +1291,14 @@ export default function Page() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recChunksRef = useRef<BlobPart[]>([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [camBrightness, setCamBrightness] = useState(50);
+  const [camBrightness, setCamBrightness] = useState(100);
+  const [camContrast, setCamContrast] = useState(100);
+  const [camSaturation, setCamSaturation] = useState(100);
   const [camSharpness, setCamSharpness] = useState(50);
+  const camFilterRef = useRef("brightness(100%) contrast(100%) saturate(100%)");
+  const renderCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const renderCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const renderLoopRef = useRef<number | null>(null);
 
   // Modals
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -1218,6 +1309,16 @@ export default function Page() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const computeCamFilter = useCallback(
+    (b?: number, c?: number, s?: number) => {
+      const br = Math.max(0, b ?? camBrightness);
+      const ct = Math.max(0, c ?? camContrast);
+      const sa = Math.max(0, s ?? camSaturation);
+      return `brightness(${br}%) contrast(${ct}%) saturate(${sa}%)`;
+    },
+    [camBrightness, camContrast, camSaturation]
+  );
 
   const applyCameraAdjust = useCallback(
     async (brightness?: number, sharpness?: number) => {
@@ -1234,6 +1335,120 @@ export default function Page() {
       }
     },
     []
+  );
+
+  // keep live filter applied to preview video and refs for capture/record
+  useEffect(() => {
+    const f = computeCamFilter();
+    camFilterRef.current = f;
+    if (videoRef.current) {
+      videoRef.current.style.filter = f;
+    }
+  }, [computeCamFilter]);
+
+  const stopRenderLoop = useCallback(() => {
+    if (renderLoopRef.current) cancelAnimationFrame(renderLoopRef.current);
+    renderLoopRef.current = null;
+  }, []);
+
+  const startRenderLoop = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (!renderCanvasRef.current) renderCanvasRef.current = document.createElement("canvas");
+    const c = renderCanvasRef.current;
+    renderCtxRef.current = c.getContext("2d");
+
+    const draw = () => {
+      if (!renderCanvasRef.current || !renderCtxRef.current || !videoRef.current) {
+        renderLoopRef.current = requestAnimationFrame(draw);
+        return;
+      }
+      const vid = videoRef.current;
+      const w = vid.videoWidth || 1280;
+      const h = vid.videoHeight || 720;
+      renderCanvasRef.current.width = w;
+      renderCanvasRef.current.height = h;
+
+      const ctx = renderCtxRef.current;
+      ctx.clearRect(0, 0, w, h);
+      ctx.filter = camFilterRef.current;
+      ctx.drawImage(vid, 0, 0, w, h);
+      ctx.filter = "none";
+
+      renderLoopRef.current = requestAnimationFrame(draw);
+    };
+
+    stopRenderLoop();
+    renderLoopRef.current = requestAnimationFrame(draw);
+  }, [stopRenderLoop]);
+
+  const CameraAdjustControls = () => (
+    <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-[11px] text-white/70 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+      <div className="flex items-center justify-between mb-1">
+        <span className="uppercase tracking-[0.08em] text-[10px] text-white/60">Adjust</span>
+        <span className="text-white/40">Cam</span>
+      </div>
+      <div className="space-y-2">
+        {[
+          {
+            label: "Brightness",
+            value: camBrightness,
+            min: 0,
+            max: 200,
+            onChange: (v: number) => {
+              setCamBrightness(v);
+              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+              applyCameraAdjust(v, camSharpness);
+            },
+            suffix: "%",
+          },
+          {
+            label: "Contrast",
+            value: camContrast,
+            min: 50,
+            max: 200,
+            onChange: (v: number) => setCamContrast(v),
+            suffix: "%",
+          },
+          {
+            label: "Saturate",
+            value: camSaturation,
+            min: 50,
+            max: 200,
+            onChange: (v: number) => setCamSaturation(v),
+            suffix: "%",
+          },
+          {
+            label: "Sharp",
+            value: camSharpness,
+            min: 0,
+            max: 100,
+            onChange: (v: number) => {
+              setCamSharpness(v);
+              // eslint-disable-next-line @typescript-eslint/no-floating-promises
+              applyCameraAdjust(camBrightness, v);
+            },
+            suffix: "",
+          },
+        ].map((it) => (
+          <div key={it.label} className="grid grid-cols-[76px_1fr_40px] items-center gap-2">
+            <span className="text-white/65">{it.label}</span>
+            <input
+              type="range"
+              min={it.min}
+              max={it.max}
+              value={it.value}
+              onChange={(e) => it.onChange(Number(e.target.value))}
+              className="w-full accent-emerald-400"
+            />
+            <span className="text-right text-white/70">
+              {it.value}
+              {it.suffix}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 
   /** ----- Root connect / disconnect ----- */
@@ -1573,6 +1788,7 @@ export default function Page() {
     setIsRecording(false);
     recorderRef.current = null;
     recChunksRef.current = [];
+    stopRenderLoop();
   }, []);
 
   const openCamera = useCallback(async () => {
@@ -1606,7 +1822,9 @@ export default function Page() {
       c.width = v.videoWidth || 1280;
       c.height = v.videoHeight || 720;
       const ctx = c.getContext("2d")!;
+      ctx.filter = camFilterRef.current;
       ctx.drawImage(v, 0, 0, c.width, c.height);
+      ctx.filter = "none";
 
       const blob = await new Promise<Blob>((resolve) => c.toBlob((b) => resolve(b!), "image/png"));
 
@@ -1631,8 +1849,14 @@ export default function Page() {
     if (!s) return alertErr("ยังไม่ได้เปิดกล้อง");
 
     try {
+      // draw filtered frames to hidden canvas, then record that stream (keeps filters in video)
+      startRenderLoop();
+      const canvasStream = (renderCanvasRef.current || document.createElement("canvas")).captureStream(30);
+      // keep audio from original stream
+      s.getAudioTracks().forEach((t) => canvasStream.addTrack(t));
+
       recChunksRef.current = [];
-      const rec = new MediaRecorder(s, { mimeType: "video/webm;codecs=vp8,opus" });
+      const rec = new MediaRecorder(canvasStream, { mimeType: "video/webm;codecs=vp8,opus" });
       recorderRef.current = rec;
 
       rec.ondataavailable = (e) => {
@@ -1655,6 +1879,7 @@ export default function Page() {
           setIsRecording(false);
           recorderRef.current = null;
           recChunksRef.current = [];
+          stopRenderLoop();
         }
       };
 
@@ -1665,7 +1890,7 @@ export default function Page() {
     } catch (e: any) {
       alertErr("เริ่มอัดวิดีโอไม่สำเร็จ", e?.message || String(e));
     }
-  }, [originalDir, canSave, refreshFiles, applyCameraAdjust, camBrightness, camSharpness]);
+  }, [originalDir, canSave, refreshFiles, applyCameraAdjust, camBrightness, camSharpness, startRenderLoop, stopRenderLoop]);
 
   const stopVideo = useCallback(() => {
     const rec = recorderRef.current;
@@ -1979,40 +2204,7 @@ export default function Page() {
                 theme={selectTheme}
               />
             </div>
-            <div className="flex items-center gap-2 text-[11px] text-white/70">
-              <div className="flex items-center gap-1">
-                <span>Brightness</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={camBrightness}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    setCamBrightness(v);
-                    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-                    applyCameraAdjust(v, camSharpness);
-                  }}
-                  className="w-24 accent-emerald-400"
-                />
-              </div>
-              <div className="flex items-center gap-1">
-                <span>Sharp</span>
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={camSharpness}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    setCamSharpness(v);
-                    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-                    applyCameraAdjust(camBrightness, v);
-                  }}
-                  className="w-24 accent-emerald-400"
-                />
-              </div>
-            </div>
+            <CameraAdjustControls />
           </div>
         }
         className="col-span-12 lg:col-span-6 min-h-0"
@@ -2022,9 +2214,13 @@ export default function Page() {
             <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
           </div>
 
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <div className="flex gap-2">
-                  <PillButton onClick={openCamera}>เปิดกล้อง</PillButton>
+          <div className="mt-3">
+            <CameraAdjustControls />
+          </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <div className="flex gap-2">
+                <PillButton onClick={openCamera}>เปิดกล้อง</PillButton>
                   <PillButton onClick={stopStream} tone="danger">
                     ปิดกล้อง
                   </PillButton>
@@ -2348,7 +2544,7 @@ export default function Page() {
               <GlassCard
                 title="Camera"
                 right={
-                  <div className="flex items-center gap-2 overflow-visible">
+                  <div className="flex items-center gap-3 overflow-visible">
                     <PillButton onClick={refreshDevices}>Refresh</PillButton>
                     <div className="w-[340px] overflow-visible">
                       <Select
@@ -2363,6 +2559,9 @@ export default function Page() {
                         theme={selectTheme}
                       />
                     </div>
+                    <div className="hidden xl:flex">
+                      <CameraAdjustControls />
+                    </div>
                   </div>
                 }
                 className="col-span-12 lg:col-span-6 min-h-0"
@@ -2370,6 +2569,10 @@ export default function Page() {
                 <div className="flex flex-col h-full min-h-0">
                   <div className="rounded-3xl border border-white/10 bg-black/40 overflow-hidden flex-1 min-h-0">
                     <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+                  </div>
+
+                  <div className="mt-3 xl:hidden">
+                    <CameraAdjustControls />
                   </div>
 
                   <div className="mt-4 flex items-center justify-between gap-3">
@@ -2507,6 +2710,7 @@ export default function Page() {
           setEditorFile(f);
           setEditorOpen(true);
         }}
+        refreshSignal={pickerRefreshTick}
       />
 
       <ImageEditorModal
@@ -2515,7 +2719,7 @@ export default function Page() {
         file={editorFile}
         chooseDir={chooseDir}
         onSaved={async () => {
-          // nothing to refresh in original; just keep modal closed
+          setPickerRefreshTick((v) => v + 1);
         }}
       />
     </main>
