@@ -2359,8 +2359,7 @@ export default function Page() {
         {/* Top bar */}
         <div className="flex items-center justify-between gap-4 mb-4">
           <div className="rounded-3xl border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.55)] px-5 py-4">
-            <div className="text-lg font-semibold">Local Video / Photo Capture</div>
-            <div className="text-xs text-white/55">Capture → Save to local folder → Preview + Manage</div>
+            <div className="font-semibold text-5xl">Intraview</div> 
           </div>
 
           <div className="flex items-center gap-2">
