@@ -1,0 +1,31 @@
+{
+  "name": "intraview",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "fabric": "^6.9.1",
+    "idb-keyval": "^6.2.2",
+    "next": "16.0.10",
+    "react": "19.2.1",
+    "react-datepicker": "^9.0.0",
+    "react-dom": "19.2.1",
+    "react-select": "^5.10.2",
+    "sweetalert2": "^11.26.10"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.10",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
