@@ -981,8 +981,13 @@ function ImageEditorModal(props: {
 
     try {
       setBusy(true);
-      const blob = await new Promise<Blob>((resolve) => {
-        c.toCanvasElement().toBlob((b) => resolve(b!), "image/png");
+      const blob = await new Promise<Blob>((resolve, reject) => {
+        c
+          .toCanvasElement()
+          .toBlob(
+            (b: Blob | null) => (b ? resolve(b) : reject(new Error("Export canvas failed"))),
+            "image/png"
+          );
       });
 
       const fh = await chooseDir.getFileHandle(file.name, { create: true });
