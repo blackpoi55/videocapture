@@ -65,9 +65,7 @@ html {
 
 .react-datepicker-popper {
   z-index: 2147483647 !important;
-  position: fixed !important;
   pointer-events: auto;
-  transform: translate3d(0, 0, 0) !important;
 }
 
 .datepicker-portal {

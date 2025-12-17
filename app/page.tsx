@@ -2212,6 +2212,7 @@ export default function Page() {
                             onChange={(d) => setPickedDate(d)}
                             customInput={<PillButton className="h-9 px-3">Pick</PillButton>}
                             popperPlacement="bottom-end"
+                            portalId="react-datepicker-portal"
                             dateFormat="yyyy-MM-dd"
                           />
                         </div>
