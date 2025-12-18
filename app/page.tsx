@@ -500,7 +500,7 @@ function ImageEditorModal(props: {
   const bgImgRef = useRef<any>(null);
 
   const [tool, setTool] = useState<"select" | "text" | "arrow" | "rect" | "circle" | "crop">("select");
-  const [stroke, setStroke] = useState("#ef4444");
+  const [stroke, setStroke] = useState("#3b82f6");
   const [fill, setFill] = useState("rgba(0,0,0,0)");
   const [fontSize, setFontSize] = useState(40);
   const [strokeW, setStrokeW] = useState(6);
@@ -634,10 +634,10 @@ function ImageEditorModal(props: {
             ...commonSelectable,
           });
         } else if (currentTool === "arrow") {
-          const path = `M 0 0 L 140 0 L 140 -10 L 170 0 L 140 10 L 140 0`;
+          const path = `M 0 0 L 36 0 L 18 36 Z`;
           obj = new Path(path, {
-            left: p.x - 85,
-            top: p.y - 10,
+            left: p.x - 18,
+            top: p.y - 12,
             stroke: strokeRef.current,
             strokeWidth: strokeWRef.current,
             fill: strokeRef.current,
