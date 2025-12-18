@@ -498,9 +498,10 @@ function ImageEditorModal(props: {
   const fabricRef = useRef<any>(null);
   const canvasRef = useRef<any>(null);
   const bgImgRef = useRef<any>(null);
+  const clipboardRef = useRef<any[] | null>(null);
 
   const [tool, setTool] = useState<"select" | "text" | "arrow" | "rect" | "circle" | "crop">("select");
-  const [stroke, setStroke] = useState("#3b82f6");
+  const [stroke, setStroke] = useState("#0008FF");
   const [fill, setFill] = useState("rgba(0,0,0,0)");
   const [fontSize, setFontSize] = useState(40);
   const [strokeW, setStrokeW] = useState(6);
@@ -612,84 +613,156 @@ function ImageEditorModal(props: {
 
       // tool drawing (single-click to drop; crop uses drag)
       const getPointer = (opt: any) => c.getPointer(opt.e);
-      let isCropping = false;
-      let cropTemp: any = null;
-      let cropStartX = 0;
-      let cropStartY = 0;
+        let isCropping = false;
+        let cropTemp: any = null;
+        let cropStartX = 0;
+        let cropStartY = 0;
 
-      const addShapeAtPoint = (p: { x: number; y: number }) => {
-        const currentTool = toolRef.current;
-        if (currentTool === "select") return;
-        if (currentTool === "crop") return; // crop handled via drag
+        let isDrawing = false;
+        let drawTemp: any = null;
+        let drawStartX = 0;
+        let drawStartY = 0;
+        let drawTool: "text" | "arrow" | "rect" | "circle" | null = null;
 
-        const commonSelectable = { selectable: true, evented: true };
-        let obj: any = null;
+        const baseArrowLen = 36;
+        const baseArrowHalfW = 12;
+        const minArrowLen = 12;
 
-        if (currentTool === "text") {
-          obj = new IText("พิมพ์ข้อความ", {
-            left: p.x,
-            top: p.y,
-            fontSize: fontSizeRef.current,
-            fill: strokeRef.current,
-            ...commonSelectable,
-          });
-        } else if (currentTool === "arrow") {
-          const path = `M 0 0 L 36 0 L 18 36 Z`;
-          obj = new Path(path, {
-            left: p.x - 18,
-            top: p.y - 12,
-            stroke: strokeRef.current,
-            strokeWidth: strokeWRef.current,
-            fill: strokeRef.current,
-            ...commonSelectable,
-            originX: "left",
-            originY: "top",
-          });
-        } else if (currentTool === "rect") {
-          obj = new Rect({
-            left: p.x - 80,
-            top: p.y - 50,
-            width: 160,
-            height: 100,
-            fill: fillRef.current,
-            stroke: strokeRef.current,
-            strokeWidth: strokeWRef.current,
-            ...commonSelectable,
-          });
-        } else if (currentTool === "circle") {
-          obj = new Circle({
-            left: p.x - 60,
-            top: p.y - 60,
-            radius: 60,
-            fill: fillRef.current,
-            stroke: strokeRef.current,
-            strokeWidth: strokeWRef.current,
-            ...commonSelectable,
-          });
-        } else if (currentTool === "crop") {
-          obj = new Rect({
-            left: p.x - 90,
-            top: p.y - 60,
-            width: 180,
-            height: 120,
-            fill: "rgba(255,255,255,0.08)",
-            stroke: "rgba(255,255,255,0.85)",
-            strokeWidth: 2,
-            strokeDashArray: [8, 6],
-            ...commonSelectable,
-          });
-        }
+        const createArrowPath = (len: number, halfW: number) => {
+          const halfLen = len / 2;
+          return `M ${halfLen} 0 L ${-halfLen} ${-halfW} L ${-halfLen} ${halfW} Z`;
+        };
 
-        if (!obj) return;
-        c.add(obj);
-        c.setActiveObject(obj);
-        c.requestRenderAll();
-        pushState();
-        if (toolRef.current !== "select") {
-          toolRef.current = "select";
-          setTool("select");
-        }
-      };
+        const startDrawing = (p: { x: number; y: number }) => {
+          const currentTool = toolRef.current;
+          if (currentTool === "select" || currentTool === "crop") return;
+
+          drawStartX = p.x;
+          drawStartY = p.y;
+          isDrawing = true;
+          drawTool = currentTool;
+
+          const commonSelectable = { selectable: false, evented: false };
+          if (currentTool === "text") {
+            drawTemp = new IText("พิมพ์ข้อความ", {
+              left: p.x,
+              top: p.y,
+              fontSize: fontSizeRef.current,
+              fill: strokeRef.current,
+              ...commonSelectable,
+              originX: "center",
+              originY: "center",
+            });
+          } else if (currentTool === "arrow") {
+            drawTemp = new Path(createArrowPath(baseArrowLen, baseArrowHalfW), {
+              left: p.x,
+              top: p.y,
+                stroke: strokeRef.current,
+                strokeWidth: strokeWRef.current,
+              fill: strokeRef.current,
+              originX: "center",
+              originY: "center",
+              ...commonSelectable,
+            });
+          } else if (currentTool === "rect") {
+            drawTemp = new Rect({
+              left: p.x,
+              top: p.y,
+              width: 1,
+              height: 1,
+              fill: fillRef.current,
+              stroke: strokeRef.current,
+              strokeWidth: strokeWRef.current,
+              ...commonSelectable,
+            });
+          } else if (currentTool === "circle") {
+            drawTemp = new Circle({
+              left: p.x,
+              top: p.y,
+              radius: 1,
+              fill: fillRef.current,
+              stroke: strokeRef.current,
+              strokeWidth: strokeWRef.current,
+              ...commonSelectable,
+            });
+          }
+
+          if (!drawTemp) return;
+          c.add(drawTemp);
+          c.requestRenderAll();
+        };
+
+        const updateDrawing = (p: { x: number; y: number }) => {
+          if (!isDrawing) return;
+          if (!drawTemp) return;
+
+          const dx = p.x - drawStartX;
+          const dy = p.y - drawStartY;
+
+          if (drawTool === "text") {
+            const baseFont = Math.max(6, fontSizeRef.current);
+            const scaleX = Math.max(0.1, Math.abs(dx) / baseFont);
+            const scaleY = Math.max(0.1, Math.abs(dy) / baseFont);
+            drawTemp.set({
+              left: drawStartX + dx / 2,
+              top: drawStartY + dy / 2,
+              scaleX,
+              scaleY,
+            });
+          } else if (drawTool === "rect") {
+            drawTemp.set({
+              left: Math.min(drawStartX, p.x),
+              top: Math.min(drawStartY, p.y),
+              width: Math.max(1, Math.abs(dx)),
+              height: Math.max(1, Math.abs(dy)),
+            });
+          } else if (drawTool === "circle") {
+            const radius = Math.max(1, Math.max(Math.abs(dx), Math.abs(dy)) / 2);
+            const cx = drawStartX + dx / 2;
+            const cy = drawStartY + dy / 2;
+            drawTemp.set({
+              left: cx - radius,
+              top: cy - radius,
+              radius,
+            });
+          } else if (drawTool === "arrow") {
+            const rad = Math.atan2(dy, dx);
+            const angle = (rad * 180) / Math.PI;
+            const dist = Math.hypot(dx, dy);
+            const scaledLen = Math.max(minArrowLen, dist);
+            const scale = scaledLen / baseArrowLen;
+            const offsetX = Math.cos(rad) * (scaledLen / 2);
+            const offsetY = Math.sin(rad) * (scaledLen / 2);
+            drawTemp.set({
+              left: p.x - offsetX,
+              top: p.y - offsetY,
+              angle,
+              scaleX: scale,
+              scaleY: scale,
+            });
+          }
+          c.requestRenderAll();
+        };
+
+        const finishDrawing = (p: { x: number; y: number }) => {
+          if (!isDrawing) return;
+
+          updateDrawing(p);
+          isDrawing = false;
+
+          if (drawTemp) {
+            const shouldReturnSelect = drawTool === "text";
+            drawTemp.set({ selectable: true, evented: true });
+            c.setActiveObject(drawTemp);
+            pushState();
+            drawTemp = null;
+            drawTool = null;
+            if (shouldReturnSelect && toolRef.current !== "select") {
+              toolRef.current = "select";
+              setTool("select");
+            }
+          }
+        };
 
       const onMouseDown = (opt: any) => {
         const p = getPointer(opt);
@@ -720,32 +793,41 @@ function ImageEditorModal(props: {
           return;
         }
 
-        addShapeAtPoint(p);
-      };
+          startDrawing(p);
+        };
 
-      const onMouseMove = (opt: any) => {
-        if (!isCropping || !cropTemp) return;
-        const p = getPointer(opt);
-        const w = p.x - cropStartX;
-        const h = p.y - cropStartY;
-        cropTemp.set({
-          left: Math.min(cropStartX, p.x),
-          top: Math.min(cropStartY, p.y),
-          width: Math.abs(w),
-          height: Math.abs(h),
-        });
-        c.requestRenderAll();
-      };
+        const onMouseMove = (opt: any) => {
+          const p = getPointer(opt);
+          if (isCropping && cropTemp) {
+            const w = p.x - cropStartX;
+            const h = p.y - cropStartY;
+            cropTemp.set({
+              left: Math.min(cropStartX, p.x),
+              top: Math.min(cropStartY, p.y),
+              width: Math.abs(w),
+              height: Math.abs(h),
+            });
+            c.requestRenderAll();
+            return;
+          }
 
-      const onMouseUp = () => {
-        if (!isCropping) return;
-        isCropping = false;
-        if (!cropTemp) return;
-        cropTemp.set({ selectable: true, evented: true });
-        c.setActiveObject(cropTemp);
-        pushState();
-        cropTemp = null;
-      };
+          updateDrawing(p);
+        };
+
+        const onMouseUp = (opt: any) => {
+          if (isCropping) {
+            isCropping = false;
+            if (!cropTemp) return;
+            cropTemp.set({ selectable: true, evented: true });
+            c.setActiveObject(cropTemp);
+            pushState();
+            cropTemp = null;
+            return;
+          }
+
+          const p = getPointer(opt);
+          finishDrawing(p);
+        };
 
       const onObjMod = () => pushState();
 
@@ -758,14 +840,15 @@ function ImageEditorModal(props: {
       c.on("object:removed", onObjMod);
 
       // resize
-      const ro = new ResizeObserver(() => {
-        // Keep relative placement by re-fitting bg only (simple)
-        const wrap = wrapRef.current;
-        if (!wrap) return;
-        const w = wrap.clientWidth;
-        const h = wrap.clientHeight;
-        c.setWidth(w);
-        c.setHeight(h);
+        const ro = new ResizeObserver(() => {
+          // Keep relative placement by re-fitting bg only (simple)
+          const wrap = wrapRef.current;
+          if (!wrap) return;
+          if (canvasRef.current !== c || !c?.lowerCanvasEl) return;
+          const w = wrap.clientWidth;
+          const h = wrap.clientHeight;
+          c.setWidth(w);
+          c.setHeight(h);
 
         // refit bg
         const bg2 = bgImgRef.current;
@@ -926,28 +1009,95 @@ function ImageEditorModal(props: {
   const doDeleteActive = useCallback(() => {
     const c = canvasRef.current;
     if (!c) return;
-    const a = c.getActiveObject();
-    if (!a) return;
-    // avoid deleting bg
-    if (a === bgImgRef.current) return;
-    c.remove(a);
+    const activeList = typeof c.getActiveObjects === "function" ? c.getActiveObjects() : [];
+    if (!activeList || activeList.length === 0) {
+      const a = c.getActiveObject();
+      if (!a || a === bgImgRef.current) return;
+      c.remove(a);
+    } else {
+      activeList.forEach((obj: any) => {
+        if (obj !== bgImgRef.current) c.remove(obj);
+      });
+    }
     c.discardActiveObject();
     c.requestRenderAll();
     pushState();
   }, [pushState]);
 
+  const copyActive = useCallback(() => {
+    const c = canvasRef.current;
+    if (!c) return;
+    const activeList = typeof c.getActiveObjects === "function" ? c.getActiveObjects() : [];
+    const rawList = activeList.length > 0 ? activeList : c.getActiveObject() ? [c.getActiveObject()] : [];
+    const list = rawList.filter((obj: any) => obj && obj !== bgImgRef.current);
+    if (list.length === 0) return;
+    clipboardRef.current = list.map((obj: any) => obj.toObject());
+  }, []);
+
+  const pasteActive = useCallback(() => {
+    const c = canvasRef.current;
+    const data = clipboardRef.current;
+    if (!c || !data || data.length === 0) return;
+    const fabric = fabricRef.current;
+    const util = fabric?.util || fabric?.fabric?.util;
+    const ActiveSelection = fabric?.ActiveSelection || fabric?.fabric?.ActiveSelection;
+    if (!util?.enlivenObjects) return;
+    util
+      .enlivenObjects(data)
+      .then((enlivened: any[]) => {
+        const list = enlivened?.filter(Boolean) || [];
+        if (list.length === 0) return;
+        const offset = 20;
+        list.forEach((obj: any) => {
+          obj.set({
+            left: (obj.left || 0) + offset,
+            top: (obj.top || 0) + offset,
+            evented: true,
+            selectable: true,
+          });
+          c.add(obj);
+        });
+        if (list.length === 1) {
+          c.setActiveObject(list[0]);
+        } else if (ActiveSelection) {
+          const activeSel = new ActiveSelection(list, { canvas: c });
+          c.setActiveObject(activeSel);
+        }
+        c.requestRenderAll();
+        pushState();
+      })
+      .catch(() => {});
+  }, [pushState]);
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Delete" && toolRef.current === "select") {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.closest("input, textarea, [contenteditable='true']"))) return;
+      const c = canvasRef.current;
+      const activeObj = c?.getActiveObject?.();
+      if (activeObj?.isEditing) return;
+      if (e.key === "Delete") {
         e.preventDefault();
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         doDeleteActive();
+        return;
       }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        e.preventDefault();
+        copyActive();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        e.preventDefault();
+        pasteActive();
+        return;
+      }
+      if (toolRef.current !== "select") return;
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, doDeleteActive]);
+  }, [open, doDeleteActive, copyActive, pasteActive]);
 
   const applyCrop = useCallback(async () => {
     const c = canvasRef.current;
@@ -1971,8 +2121,9 @@ export default function Page() {
 
   const openPicker = useCallback(() => {
     if (!originalDir || !chooseDir) return alertErr("ยังไม่มี original/choose", "เลือก Date/HN/VN ก่อน");
+    stopStream();
     setPickerOpen(true);
-  }, [originalDir, chooseDir]);
+  }, [originalDir, chooseDir, stopStream]);
 
   const openEditor = useCallback((f: FileItem) => {
     setEditorFile(f);
