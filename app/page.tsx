@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Select, { components, SingleValue } from "react-select";
 import Swal from "sweetalert2";
 import DatePicker from "react-datepicker";
@@ -11,6 +11,7 @@ import "react-datepicker/dist/react-datepicker.css";
  *  --------------------------*/
 const IDB_DB = "vcapture_db_v1";
 const IDB_STORE = "kv";
+const REPORT_STORAGE_KEY = "vcapture_report_payload";
 
 function idbOpen(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -312,9 +313,10 @@ function ImagePickerModal(props: {
   chooseDir: DirHandle | null;
   onRefreshAfter: () => Promise<void>;
   onEditChosen: (file: FileItem) => void;
+  onExportReport: () => Promise<void>;
   refreshSignal?: number;
 }) {
-  const { open, onClose, originalDir, chooseDir, onRefreshAfter, onEditChosen, refreshSignal } = props;
+  const { open, onClose, originalDir, chooseDir, onRefreshAfter, onEditChosen, onExportReport, refreshSignal } = props;
   const [left, setLeft] = useState<FileItem[]>([]);
   const [right, setRight] = useState<FileItem[]>([]);
   const [busy, setBusy] = useState(false);
@@ -387,6 +389,19 @@ function ImagePickerModal(props: {
           <div className="flex gap-2">
             <PillButton onClick={() => refresh()} disabled={busy}>
               Refresh
+            </PillButton>
+            <PillButton
+              onClick={async () => {
+                try {
+                  setBusy(true);
+                  await onExportReport();
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              disabled={busy}
+            >
+              ออกรีพอร์ท
             </PillButton>
             <PillButton tone="danger" onClick={onClose} disabled={busy}>
               ปิด
@@ -524,6 +539,7 @@ function ImageEditorModal(props: {
   const [fill, setFill] = useState("rgba(0,0,0,0)");
   const [fontSize, setFontSize] = useState(40);
   const [strokeW, setStrokeW] = useState(6);
+  const transparentFill = "rgba(0,0,0,0)";
   const [busy, setBusy] = useState(false);
   const toolRef = useRef(tool);
   const strokeRef = useRef(stroke);
@@ -540,7 +556,6 @@ function ImageEditorModal(props: {
     const common = {
       stroke: strokeRef.current,
       strokeWidth: strokeWRef.current,
-      fill: fillRef.current,
     };
 
     if (a.type === "i-text" || a.type === "textbox") {
@@ -548,8 +563,10 @@ function ImageEditorModal(props: {
         fill: strokeRef.current,
         fontSize: fontSizeRef.current,
       });
-    } else if (a.type === "rect" || a.type === "circle" || a.type === "triangle" || a.type === "path") {
-      a.set(common);
+    } else if (a.type === "path") {
+      a.set({ ...common, fill: strokeRef.current });
+    } else if (a.type === "rect" || a.type === "circle" || a.type === "triangle") {
+      a.set({ ...common, fill: transparentFill });
     } else if (a.type === "line") {
       a.set({
         stroke: strokeRef.current,
@@ -689,7 +706,7 @@ function ImageEditorModal(props: {
             top: p.y,
             width: 1,
             height: 1,
-            fill: fillRef.current,
+            fill: transparentFill,
             stroke: strokeRef.current,
             strokeWidth: strokeWRef.current,
             ...commonSelectable,
@@ -699,7 +716,7 @@ function ImageEditorModal(props: {
             left: p.x,
             top: p.y,
             radius: 1,
-            fill: fillRef.current,
+            fill: transparentFill,
             stroke: strokeRef.current,
             strokeWidth: strokeWRef.current,
             ...commonSelectable,
@@ -1092,23 +1109,27 @@ function ImageEditorModal(props: {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
-      if (target && (target.closest("input, textarea, [contenteditable='true']"))) return;
       const c = canvasRef.current;
       const activeObj = c?.getActiveObject?.();
       if (activeObj?.isEditing) return;
+      if (target && target.closest("input, textarea, [contenteditable='true']") && !activeObj) return;
       if (e.key === "Delete") {
         e.preventDefault();
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
         doDeleteActive();
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+      const isCopy = (e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "c" || e.code === "KeyC");
+      const isPaste = (e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === "v" || e.code === "KeyV");
+      if (isCopy) {
         e.preventDefault();
+        e.stopPropagation();
         copyActive();
         return;
       }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+      if (isPaste) {
         e.preventDefault();
+        e.stopPropagation();
         pasteActive();
         return;
       }
@@ -1786,6 +1807,21 @@ export default function Page() {
         alertErr("Browser ไม่รองรับ", "ต้องใช้ Chrome/Edge ที่รองรับ File System Access API");
         return;
       }
+      const saved = await idbGet<DirHandle>("rootHandle");
+      if (saved) {
+        const perm = await (saved as any).queryPermission?.({ mode: "readwrite" });
+        if (perm !== "granted") {
+          const req = await (saved as any).requestPermission?.({ mode: "readwrite" });
+          if (req !== "granted") {
+            alertErr("ยังไม่ได้อนุญาตสิทธิ์", "โปรดกด Allow เพื่อเชื่อมต่อ Root เดิม");
+            return;
+          }
+        }
+        setRoot(saved);
+        setRootLabel(saved.name || "Root");
+        alertOk("เชื่อมต่อ Root เดิมแล้ว");
+        return;
+      }
       const h = await (window as any).showDirectoryPicker({ mode: "readwrite" });
       setRoot(h);
       setRootLabel(h.name || "Root");
@@ -1828,15 +1864,11 @@ export default function Page() {
         const saved = await idbGet<DirHandle>("rootHandle");
         if (!saved) return;
 
-        // request permission
+        // auto-reconnect only if permission already granted
         const perm = await (saved as any).queryPermission?.({ mode: "readwrite" });
-        if (perm !== "granted") {
-          const req = await (saved as any).requestPermission?.({ mode: "readwrite" });
-          if (req !== "granted") return;
-        }
+        if (perm !== "granted") return;
         setRoot(saved);
         setRootLabel(saved.name || "Root");
-        alertOk("เชื่อมต่อ Root เดิมแล้ว");
       } catch {
         // ignore
       }
@@ -2060,6 +2092,9 @@ export default function Page() {
 
   /** ----- current path click: copy + refresh + scroll ----- */
   const filesPanelRef = useRef<HTMLDivElement | null>(null);
+  const filesListRef = useRef<HTMLDivElement | null>(null);
+  const previewScrollTopRef = useRef(0);
+  const pageScrollTopRef = useRef(0);
 
   const currentPathText = useMemo(() => {
     const parts: string[] = [];
@@ -2080,6 +2115,21 @@ export default function Page() {
       alertInfo("ไม่สามารถคัดลอกได้", currentPathText);
     }
   }, [currentPathText, refreshFiles]);
+
+  const setPreviewKeepScroll = useCallback((it: FileItem) => {
+    previewScrollTopRef.current = filesListRef.current?.scrollTop ?? 0;
+    pageScrollTopRef.current = window.scrollY || 0;
+    setPreview(it);
+  }, []);
+
+  useLayoutEffect(() => {
+    const el = filesListRef.current;
+    if (!el) return;
+    el.scrollTop = previewScrollTopRef.current;
+    if (window.scrollY !== pageScrollTopRef.current) {
+      window.scrollTo({ top: pageScrollTopRef.current });
+    }
+  }, [preview, previewUrl]);
 
   /** ----- Camera: enumerate + open/close ----- */
   const refreshDevices = useCallback(async () => {
@@ -2306,6 +2356,77 @@ export default function Page() {
     setPickerOpen(true);
   }, [originalDir, chooseDir, stopStream]);
 
+  const exportReport = useCallback(async () => {
+    if (!chooseDir) {
+      alertErr("ยังไม่มีโฟลเดอร์ choose", "เลือก Date/HN/VN ก่อน");
+      return;
+    }
+    if (!dateSelected || !hnSelected || !vnSelected) {
+      alertErr("ข้อมูลไม่ครบ", "ต้องเลือก Date/HN/VN ก่อน");
+      return;
+    }
+    const reportWindow = window.open("", "_blank");
+    if (!reportWindow) {
+      alertErr("เปิดแท็บใหม่ไม่สำเร็จ", "กรุณาอนุญาต popup แล้วลองใหม่");
+      return;
+    }
+    try {
+      reportWindow.document.write(
+        "<!doctype html><title>กำลังสร้างรีพอร์ท...</title><body style='font-family:sans-serif;padding:24px;background:#0f172a;color:#e2e8f0'>กำลังสร้างรีพอร์ท...</body>"
+      );
+      reportWindow.opener = null;
+    } catch {
+      // ignore write failures
+    }
+    try {
+      const fl = await listFiles(chooseDir);
+      const imgs = fl.filter((f) => isImageType(f.type, f.name));
+      if (imgs.length === 0) {
+        reportWindow.close();
+        alertInfo("ไม่มีรูปใน choose");
+        return;
+      }
+
+      const toDataUrl = (file: File) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+
+      const images = [];
+      for (const it of imgs) {
+        const f = await it.handle.getFile();
+        images.push({
+          name: it.name,
+          type: f.type || it.type || "",
+          size: f.size,
+          dataUrl: await toDataUrl(f),
+        });
+      }
+
+      const payload = {
+        date: dateSelected.value,
+        hn: hnSelected.value,
+        vn: vnSelected.value,
+        images,
+      };
+
+      const reportKey = `${REPORT_STORAGE_KEY}:${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+      const payloadJson = JSON.stringify(payload);
+      sessionStorage.setItem(REPORT_STORAGE_KEY, payloadJson);
+      localStorage.setItem(reportKey, payloadJson);
+      const reportUrl = `/report?payload=${encodeURIComponent(reportKey)}`;
+      reportWindow.location.href = reportUrl;
+    } catch (e: any) {
+      reportWindow.close();
+      alertErr("ออกรีพอร์ทไม่สำเร็จ", e?.message || String(e));
+    }
+  }, [chooseDir, dateSelected, hnSelected, vnSelected]);
+
   const openEditor = useCallback((f: FileItem) => {
     setEditorFile(f);
     setEditorOpen(true);
@@ -2334,188 +2455,7 @@ export default function Page() {
     return `${v}/original`;
   }, [dateSelected, hnSelected, vnSelected]);
 
-  const TopBar = () => (
-    <div className="flex items-center justify-between gap-4 mb-4">
-      <div className="rounded-3xl border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.55)] px-5 py-4">
-        <div className="text-lg font-semibold">Local Video / Photo Capture</div>
-        <div className="text-xs text-white/55">Capture → Save to local folder → Preview + Manage</div>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <div className="px-4 py-2 rounded-2xl border border-white/10 bg-emerald-500/10 text-sm text-white/80">
-          Root: <span className="text-white/90">{root ? rootLabel : "—"}</span>
-        </div>
-        <PillButton onClick={connectRoot} tone="primary">
-          Select Root
-        </PillButton>
-        <PillButton onClick={disconnectRoot} tone="danger" disabled={!root}>
-          Disconnect
-        </PillButton>
-      </div>
-    </div>
-  );
-
-  const FolderBuilderSection = () => (
-    <GlassCard
-      title="Folder Builder"
-      right={
-        <div className="flex items-center gap-2">
-          <div className="text-xs text-white/55">
-            Save bucket: <span className="text-white/85">original</span>
-          </div>
-          <PillButton onClick={() => setBuilderOpen((v) => !v)}>{builderOpen ? "พับ" : "ขยาย"}</PillButton>
-        </div>
-      }
-      className="overflow-visible"
-    >
-      {builderOpen && (
-        <div className="grid grid-cols-12 gap-4 overflow-visible">
-          {/* Date */}
-          <div className="col-span-12 lg:col-span-5 overflow-visible">
-            <div className="text-xs text-white/60 mb-2">Date (พ.ศ.)</div>
-            <div className="grid grid-cols-[1fr_auto] gap-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
-                <div className="text-[11px] text-white/50">เลือกวันที่</div>
-                <div className="mt-1 flex items-center justify-center gap-2">
-                  <div className="text-sm text-white/90 w-full">{beDateLabel}</div>
-                  <DatePicker
-                    selected={pickedDate}
-                    onChange={(d) => setPickedDate(d)}
-                    customInput={<PillButton className="h-9 px-3">Pick</PillButton>}
-                    popperPlacement="bottom-end"
-                    dateFormat="yyyy-MM-dd"
-                    portalId="react-datepicker-portal"
-                  />
-
-                </div>
-                <div className="text-[11px] text-white/45 mt-1">{pickedDate ? `${pickedDate.toISOString().slice(0, 10)} → folder: ${dateKey}` : "ยังไม่เลือก"}</div>
-              </div>
-
-              <PillButton onClick={createOrSelectDate} disabled={!vcDir || !pickedDate} className="h-full">
-                ใช้
-              </PillButton>
-            </div>
-
-            <div className="mt-3 overflow-visible">
-              <Select
-                value={dateSelected}
-                onChange={(v) => selectDateFolder(v as any)}
-                options={dateOptions.map((o) => {
-                  // if selected date exists, show proper label
-                  if (pickedDate && o.value === dateKey) return { value: o.value, label: `${o.value} — ${formatThaiBEDisplay(pickedDate)}` };
-                  return o;
-                })}
-                placeholder="ค้นหา/เลือก Date folder"
-                isClearable
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
-                styles={selectStyles}
-                theme={selectTheme}
-              />
-              <div className="text-[11px] text-white/45 mt-2">
-                Example: <span className="text-white/70">VideoCapture/{dateSelected?.value || "ddMMyy"}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* HN */}
-          <div className="col-span-12 lg:col-span-3 overflow-visible">
-            <div className="text-xs text-white/60 mb-2">HN</div>
-            <div className="grid grid-cols-[1fr_auto] gap-2">
-              <input
-                value={hnInput}
-                onChange={(e) => setHnInput(e.target.value)}
-                placeholder="เช่น 112222"
-                className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white/90 outline-none"
-              />
-              <PillButton onClick={createHN} disabled={!dateDir}>
-                Create
-              </PillButton>
-            </div>
-
-            <div className="mt-3 overflow-visible">
-              <Select
-                value={hnSelected}
-                onChange={(v) => selectHNFolder(v as any)}
-                options={hnOptions}
-                placeholder="ค้นหา/เลือก HN"
-                isClearable
-                menuPortalTarget={document.body}
-                menuPosition="fixed"
-                styles={selectStyles}
-                theme={selectTheme}
-              />
-            </div>
-          </div>
-
-          {/* VN (bucket fixed original) */}
-          <div className="col-span-12 lg:col-span-4 overflow-visible">
-            <div className="text-xs text-white/60 mb-2">VN (Save: original)</div>
-            <div className="grid grid-cols-[1fr_auto] gap-2">
-              <input
-                value={vnInput}
-                onChange={(e) => setVnInput(e.target.value)}
-                placeholder="เช่น 112222"
-                className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white/90 outline-none"
-              />
-              <PillButton onClick={createVN} disabled={!hnDir}>
-                Create
-              </PillButton>
-            </div>
-
-            <div className="mt-3 overflow-visible grid grid-cols-[1fr_auto] gap-2">
-              <div className="overflow-visible">
-                <Select
-                  value={vnSelected}
-                  onChange={(v) => selectVNFolder(v as any)}
-                  options={vnOptions}
-                  placeholder="ค้นหา/เลือก VN"
-                  isClearable
-                  menuPortalTarget={document.body}
-                  menuPosition="fixed"
-                  styles={selectStyles}
-                  theme={selectTheme}
-                />
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 flex items-center text-sm text-white/80">
-                original
-              </div>
-            </div>
-
-            <div className="mt-2 text-[11px] text-white/50 break-words">
-              Current path:{" "}
-              <button onClick={onClickPath} className="underline text-white/75 hover:text-white break-words">
-                {builderPathHint}
-              </button>
-            </div>
-
-            <div className="mt-3 flex gap-2">
-              <PillButton onClick={openPicker} disabled={!originalDir || !chooseDir}>
-                รีพอร์ท/เลือกจัดการรูป
-              </PillButton>
-              <PillButton onClick={refreshFiles} disabled={!originalDir}>
-                Refresh Files
-              </PillButton>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {!builderOpen && (
-        <div className="text-sm text-white/60 flex items-center justify-between gap-3">
-          <div className="truncate break-words">
-            {builderPathHint}{" "}
-            <button onClick={onClickPath} className="underline text-white/70 hover:text-white break-words">
-              (คลิกเพื่อคัดลอก/รีเฟรช)
-            </button>
-          </div>
-          <div className="text-xs text-white/45">Builder ถูกพับเพื่อเน้น Camera/Preview</div>
-        </div>
-      )}
-    </GlassCard>
-  );
-
-  const CameraPreviewSection = () => (
+  const renderCameraPreviewSection = () => (
     <div className="grid grid-cols-12 gap-4 min-h-0">
       {/* Camera */}
       <GlassCard
@@ -2523,7 +2463,7 @@ export default function Page() {
         right={
           <div className="flex items-center gap-3 overflow-visible">
             <PillButton onClick={refreshDevices}>Refresh</PillButton>
-            <div className="w-[280px] overflow-visible">
+            <div className="w-[340px] overflow-visible">
               <Select
                 value={deviceSelected}
                 onChange={(v) => setDeviceSelected(v as any)}
@@ -2536,7 +2476,9 @@ export default function Page() {
                 theme={selectTheme}
               />
             </div>
-            <PillButton onClick={() => setCamAdjustOpen(true)}>Adjust</PillButton>
+            <div className="hidden xl:flex">
+              <PillButton onClick={() => setCamAdjustOpen(true)}>Adjust</PillButton>
+            </div>
           </div>
         }
         className="col-span-12 lg:col-span-6 min-h-0"
@@ -2553,7 +2495,7 @@ export default function Page() {
             />
           </div>
 
-          <div className="mt-3">
+          <div className="mt-3 xl:hidden">
             <PillButton onClick={() => setCamAdjustOpen(true)}>Adjust</PillButton>
           </div>
 
@@ -2618,22 +2560,29 @@ export default function Page() {
     </div>
   );
 
-  const FilesPanelSection = () => (
+  const renderFilesPanelSection = () => (
     <div ref={filesPanelRef} className={`h-full ${filesOpen ? "w-[420px]" : "w-[56px]"} transition-all duration-200`}>
       <GlassCard
         title={filesOpen ? "Files" : undefined}
         right={
-          <div className="flex items-center gap-2">
-            {filesOpen && <div className="text-xs text-white/50">{files.length} items</div>}
-            <IconButton onClick={() => setFilesOpen((v) => !v)} title={filesOpen ? "พับ" : "ขยาย"}>
-              {filesOpen ? "◀" : "▶"}
-            </IconButton>
-          </div>
+          filesOpen ? (
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-white/50">{files.length} items</div>
+              <IconButton onClick={() => setFilesOpen((v) => !v)} title="พับ">
+                ◀
+              </IconButton>
+            </div>
+          ) : undefined
         }
-        className="h-full"
+        className="h-full overflow-hidden"
       >
         {!filesOpen ? (
-          <div className="h-full flex items-center justify-center text-white/30">Files</div>
+          <div className="h-full flex flex-col items-center justify-center gap-3 text-white/30">
+            <IconButton onClick={() => setFilesOpen(true)} title="ขยาย">
+              ▶
+            </IconButton>
+            <div className="text-sm">Files</div>
+          </div>
         ) : (
           <div className="h-full min-h-0 flex flex-col">
             <div className="text-xs text-white/55 mb-3 space-y-1">
@@ -2645,33 +2594,48 @@ export default function Page() {
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 overflow-auto space-y-3 pr-1">
+            <div
+              ref={filesListRef}
+              onScroll={() => {
+                previewScrollTopRef.current = filesListRef.current?.scrollTop ?? 0;
+              }}
+              className="flex-1 min-h-0 max-h-[calc(100vh-200px)] overflow-auto space-y-3 pr-1"
+            >
               {files.length === 0 && <div className="text-sm text-white/50">ยังไม่มีไฟล์ในโฟลเดอร์นี้</div>}
 
-              {files.map((it) => (
-                <div
-                  key={it.name}
-                  className={`rounded-2xl border p-3 flex gap-3 items-start flex-wrap sm:flex-nowrap ${preview?.name === it.name ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]"
-                    }`}
-                >
-                  <Thumb file={it} />
-                  <div className="min-w-0 flex-1">
-                    <button className="text-sm text-white/90 truncate hover:underline" onClick={() => setPreview(it)} title="คลิกเพื่อ Preview">
-                      {it.name}
-                    </button>
-                    <div className="text-[11px] text-white/50 flex items-center justify-between gap-2">
-                      <span className="truncate min-w-0">{it.type || "unknown"}</span>
-                      <span>{humanSize(it.size)}</span>
+                {files.map((it) => (
+                  <div
+                    key={it.name}
+                    className={`rounded-2xl border p-3 flex gap-3 items-start cursor-pointer ${preview?.name === it.name ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]"
+                      }`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => setPreviewKeepScroll(it)}
+                    title="คลิกเพื่อ Preview"
+                  >
+                    <Thumb file={it} />
+                    <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        className="text-sm text-white/90 truncate hover:underline"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => setPreviewKeepScroll(it)}
+                        title="คลิกเพื่อ Preview"
+                      >
+                        {it.name}
+                      </button>
+                      <div className="text-[11px] text-white/50 flex items-center justify-between gap-2">
+                        <span className="truncate min-w-0">{it.type || "unknown"}</span>
+                        <span>{humanSize(it.size)}</span>
+                      </div>
+                      <div className="mt-2 flex gap-2 flex-wrap">
+                        <PillButton onClick={() => downloadFile(it)}>Download</PillButton>
+                        <PillButton tone="danger" onClick={() => deleteFile(it)} disabled={!originalDir}>
+                          Delete
+                        </PillButton>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                    <PillButton onClick={() => downloadFile(it)}>Download</PillButton>
-                    <PillButton tone="danger" onClick={() => deleteFile(it)} disabled={!originalDir}>
-                      Delete
-                    </PillButton>
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
         )}
@@ -2875,170 +2839,10 @@ export default function Page() {
               )}
             </GlassCard>
 
-            {/* Camera + Preview (bigger) */}
-            <div className="grid grid-cols-12 gap-4 min-h-0">
-              {/* Camera */}
-              <GlassCard
-                title="Camera"
-                right={
-                  <div className="flex items-center gap-3 overflow-visible">
-                    <PillButton onClick={refreshDevices}>Refresh</PillButton>
-                    <div className="w-[340px] overflow-visible">
-                      <Select
-                        value={deviceSelected}
-                        onChange={(v) => setDeviceSelected(v as any)}
-                        options={cameraOptions}
-                        placeholder="เลือกกล้อง"
-                        isClearable
-                        menuPortalTarget={document.body}
-                        menuPosition="fixed"
-                        styles={selectStyles}
-                        theme={selectTheme}
-                      />
-                    </div>
-                    <div className="hidden xl:flex">
-                      <PillButton onClick={() => setCamAdjustOpen(true)}>Adjust</PillButton>
-                    </div>
-                  </div>
-                }
-                className="col-span-12 lg:col-span-6 min-h-0"
-              >
-                <div className="flex flex-col h-full min-h-0">
-                  <div className="rounded-3xl border border-white/10 bg-black/40 overflow-hidden flex-1 min-h-0">
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-contain"
-                      style={{ transform: previewCropTransform, transformOrigin: "top left" }}
-                    />
-                  </div>
-
-                  <div className="mt-3 xl:hidden">
-                    <PillButton onClick={() => setCamAdjustOpen(true)}>Adjust</PillButton>
-                  </div>
-
-                  <div className="mt-4 flex items-center justify-between gap-3">
-                    <div className="flex gap-2">
-                      <PillButton onClick={openCamera}>เปิดกล้อง</PillButton>
-                      <PillButton onClick={stopStream} tone="danger">
-                        ปิดกล้อง
-                      </PillButton>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <PillButton onClick={savePhoto} disabled={!streamRef.current || !canSave}>
-                        ถ่ายรูป (PNG)
-                      </PillButton>
-
-                      {!isRecording ? (
-                        <PillButton onClick={startVideo} disabled={!streamRef.current || !canSave}>
-                          อัดวิดีโอ
-                        </PillButton>
-                      ) : (
-                        <PillButton onClick={stopVideo} tone="danger">
-                          หยุดอัด
-                        </PillButton>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-2 text-[11px] text-white/45">
-                    ต้องเลือก Date/HN/VN ก่อนบันทึก และจะบันทึกลง <span className="text-white/70">original</span> เท่านั้น
-                  </div>
-                </div>
-              </GlassCard>
-
-              {/* Preview */}
-              <GlassCard title="Preview" right={<div className="text-xs text-white/45">Auto after capture</div>} className="col-span-12 lg:col-span-6 min-h-0">
-                <div className="h-full min-h-0 flex flex-col">
-                  <div className="text-sm text-white/80 mb-2 truncate">{preview?.name || "ยังไม่มีพรีวิว (ถ่ายรูป/อัดวิดีโอแล้วจะขึ้นอัตโนมัติ)"}</div>
-
-                  <div className="rounded-3xl border border-white/10 bg-black/40 overflow-hidden flex-1 min-h-0 flex items-center justify-center">
-                    {!preview || !previewUrl ? (
-                      <div className="text-sm text-white/45">No Preview</div>
-                    ) : isImageType(preview.type, preview.name) ? (
-                      <img src={previewUrl} alt={preview.name} className="max-h-full max-w-full object-contain" />
-                    ) : isVideoType(preview.type, preview.name) ? (
-                      <video src={previewUrl} controls className="max-h-full max-w-full object-contain" />
-                    ) : (
-                      <div className="text-sm text-white/45">ไม่รองรับ preview</div>
-                    )}
-                  </div>
-
-                  {preview && (
-                    <div className="mt-3 flex gap-2">
-                      <PillButton onClick={() => downloadFile(preview)}>Download</PillButton>
-                      <PillButton tone="danger" onClick={() => deleteFile(preview)} disabled={!originalDir}>
-                        Delete
-                      </PillButton>
-                    </div>
-                  )}
-                </div>
-              </GlassCard>
-            </div>
+            {renderCameraPreviewSection()}
           </div>
 
-          {/* FILES PANEL (collapsible) */}
-          <div ref={filesPanelRef} className={`h-full ${filesOpen ? "w-[420px]" : "w-[56px]"} transition-all duration-200`}>
-            <GlassCard
-              title={filesOpen ? "Files" : undefined}
-              right={
-                <div className="flex items-center gap-2">
-                  {filesOpen && <div className="text-xs text-white/50">{files.length} items</div>}
-                  <IconButton onClick={() => setFilesOpen((v) => !v)} title={filesOpen ? "พับ" : "ขยาย"}>
-                    {filesOpen ? "◀" : "▶"}
-                  </IconButton>
-                </div>
-              }
-              className="h-full"
-            >
-              {!filesOpen ? (
-                <div className="h-full flex items-center justify-center text-white/30">Files</div>
-              ) : (
-                <div className="h-full min-h-0 flex flex-col">
-                  <div className="text-xs text-white/55 mb-3 space-y-1">
-                    <div className="truncate">Path:</div>
-                    <div className="truncate break-all">
-                      <button onClick={onClickPath} className="underline hover:text-white">{currentPathText}</button>
-                    </div>
-                  </div>
-
-                  <div className="flex-1 min-h-0 max-h-[calc(100vh-220px)] overflow-auto space-y-3 pr-1">
-                    {files.length === 0 && <div className="text-sm text-white/50">ยังไม่มีไฟล์ในโฟลเดอร์นี้</div>}
-
-                    {files.map((it) => (
-                      <div
-                        key={it.name}
-                        className={`rounded-2xl border p-3 flex gap-3 items-start flex-wrap sm:flex-nowrap cursor-pointer ${preview?.name === it.name ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]"
-                          }`}
-                        onClick={() => setPreview(it)}
-                        title="คลิกเพื่อ Preview"
-                      >
-                        <Thumb file={it} />
-                        <div className="flex flex-col">
-                          <div className="min-w-0 flex-1">
-                            <div className="text-sm text-white/90 truncate hover:underline">{it.name}</div>
-                            <div className="text-[11px] text-white/50 flex items-center justify-between gap-2">
-                              <span className="truncate min-w-0">{it.type || "unknown"}</span>
-                              <span>{humanSize(it.size)}</span>
-                            </div>
-                          </div>
-                          <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                            <PillButton onClick={(e) => { e.stopPropagation(); downloadFile(it); }}>Download</PillButton>
-                            <PillButton tone="danger" onClick={(e) => { e.stopPropagation(); deleteFile(it); }} disabled={!originalDir}>
-                              Delete
-                            </PillButton>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </GlassCard>
-          </div>
+          {renderFilesPanelSection()}
         </div>
       </div>
 
@@ -3053,6 +2857,7 @@ export default function Page() {
           setEditorFile(f);
           setEditorOpen(true);
         }}
+        onExportReport={exportReport}
         refreshSignal={pickerRefreshTick}
       />
 
