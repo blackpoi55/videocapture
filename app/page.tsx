@@ -480,6 +480,25 @@ function ImagePickerModal(props: {
   );
 }
 
+function CameraAdjustModal(props: { open: boolean; onClose: () => void; children: React.ReactNode }) {
+  const { open, onClose, children } = props;
+  if (!open) return null;
+  return (
+    <>
+      <div className="fixed inset-0 z-[99998] pointer-events-none" />
+      <div className="fixed right-4 top-4 z-[99999] w-[420px] max-w-[90vw] rounded-3xl border border-white/10 bg-slate-950/70 shadow-[0_40px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl pointer-events-auto">
+        <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+          <div className="text-white/90 font-semibold">Adjust Camera</div>
+          <PillButton tone="danger" onClick={onClose}>
+            Close
+          </PillButton>
+        </div>
+        <div className="p-4">{children}</div>
+      </div>
+    </>
+  );
+}
+
 /** ---------------------------
  *  Fabric Image Editor Modal (dynamic import)
  *  --------------------------*/
@@ -540,7 +559,7 @@ function ImageEditorModal(props: {
     c.requestRenderAll();
   }, []);
 
-  const pushState = useCallback(() => {}, []);
+  const pushState = useCallback(() => { }, []);
 
   const destroyCanvas = useCallback(() => {
     try {
@@ -613,156 +632,156 @@ function ImageEditorModal(props: {
 
       // tool drawing (single-click to drop; crop uses drag)
       const getPointer = (opt: any) => c.getPointer(opt.e);
-        let isCropping = false;
-        let cropTemp: any = null;
-        let cropStartX = 0;
-        let cropStartY = 0;
+      let isCropping = false;
+      let cropTemp: any = null;
+      let cropStartX = 0;
+      let cropStartY = 0;
 
-        let isDrawing = false;
-        let drawTemp: any = null;
-        let drawStartX = 0;
-        let drawStartY = 0;
-        let drawTool: "text" | "arrow" | "rect" | "circle" | null = null;
+      let isDrawing = false;
+      let drawTemp: any = null;
+      let drawStartX = 0;
+      let drawStartY = 0;
+      let drawTool: "text" | "arrow" | "rect" | "circle" | null = null;
 
-        const baseArrowLen = 36;
-        const baseArrowHalfW = 12;
-        const minArrowLen = 12;
+      const baseArrowLen = 36;
+      const baseArrowHalfW = 12;
+      const minArrowLen = 12;
 
-        const createArrowPath = (len: number, halfW: number) => {
-          const halfLen = len / 2;
-          return `M ${halfLen} 0 L ${-halfLen} ${-halfW} L ${-halfLen} ${halfW} Z`;
-        };
+      const createArrowPath = (len: number, halfW: number) => {
+        const halfLen = len / 2;
+        return `M ${halfLen} 0 L ${-halfLen} ${-halfW} L ${-halfLen} ${halfW} Z`;
+      };
 
-        const startDrawing = (p: { x: number; y: number }) => {
-          const currentTool = toolRef.current;
-          if (currentTool === "select" || currentTool === "crop") return;
+      const startDrawing = (p: { x: number; y: number }) => {
+        const currentTool = toolRef.current;
+        if (currentTool === "select" || currentTool === "crop") return;
 
-          drawStartX = p.x;
-          drawStartY = p.y;
-          isDrawing = true;
-          drawTool = currentTool;
+        drawStartX = p.x;
+        drawStartY = p.y;
+        isDrawing = true;
+        drawTool = currentTool;
 
-          const commonSelectable = { selectable: false, evented: false };
-          if (currentTool === "text") {
-            drawTemp = new IText("พิมพ์ข้อความ", {
-              left: p.x,
-              top: p.y,
-              fontSize: fontSizeRef.current,
-              fill: strokeRef.current,
-              ...commonSelectable,
-              originX: "center",
-              originY: "center",
-            });
-          } else if (currentTool === "arrow") {
-            drawTemp = new Path(createArrowPath(baseArrowLen, baseArrowHalfW), {
-              left: p.x,
-              top: p.y,
-                stroke: strokeRef.current,
-                strokeWidth: strokeWRef.current,
-              fill: strokeRef.current,
-              originX: "center",
-              originY: "center",
-              ...commonSelectable,
-            });
-          } else if (currentTool === "rect") {
-            drawTemp = new Rect({
-              left: p.x,
-              top: p.y,
-              width: 1,
-              height: 1,
-              fill: fillRef.current,
-              stroke: strokeRef.current,
-              strokeWidth: strokeWRef.current,
-              ...commonSelectable,
-            });
-          } else if (currentTool === "circle") {
-            drawTemp = new Circle({
-              left: p.x,
-              top: p.y,
-              radius: 1,
-              fill: fillRef.current,
-              stroke: strokeRef.current,
-              strokeWidth: strokeWRef.current,
-              ...commonSelectable,
-            });
+        const commonSelectable = { selectable: false, evented: false };
+        if (currentTool === "text") {
+          drawTemp = new IText("พิมพ์ข้อความ", {
+            left: p.x,
+            top: p.y,
+            fontSize: fontSizeRef.current,
+            fill: strokeRef.current,
+            ...commonSelectable,
+            originX: "center",
+            originY: "center",
+          });
+        } else if (currentTool === "arrow") {
+          drawTemp = new Path(createArrowPath(baseArrowLen, baseArrowHalfW), {
+            left: p.x,
+            top: p.y,
+            stroke: strokeRef.current,
+            strokeWidth: strokeWRef.current,
+            fill: strokeRef.current,
+            originX: "center",
+            originY: "center",
+            ...commonSelectable,
+          });
+        } else if (currentTool === "rect") {
+          drawTemp = new Rect({
+            left: p.x,
+            top: p.y,
+            width: 1,
+            height: 1,
+            fill: fillRef.current,
+            stroke: strokeRef.current,
+            strokeWidth: strokeWRef.current,
+            ...commonSelectable,
+          });
+        } else if (currentTool === "circle") {
+          drawTemp = new Circle({
+            left: p.x,
+            top: p.y,
+            radius: 1,
+            fill: fillRef.current,
+            stroke: strokeRef.current,
+            strokeWidth: strokeWRef.current,
+            ...commonSelectable,
+          });
+        }
+
+        if (!drawTemp) return;
+        c.add(drawTemp);
+        c.requestRenderAll();
+      };
+
+      const updateDrawing = (p: { x: number; y: number }) => {
+        if (!isDrawing) return;
+        if (!drawTemp) return;
+
+        const dx = p.x - drawStartX;
+        const dy = p.y - drawStartY;
+
+        if (drawTool === "text") {
+          const baseFont = Math.max(6, fontSizeRef.current);
+          const scaleX = Math.max(0.1, Math.abs(dx) / baseFont);
+          const scaleY = Math.max(0.1, Math.abs(dy) / baseFont);
+          drawTemp.set({
+            left: drawStartX + dx / 2,
+            top: drawStartY + dy / 2,
+            scaleX,
+            scaleY,
+          });
+        } else if (drawTool === "rect") {
+          drawTemp.set({
+            left: Math.min(drawStartX, p.x),
+            top: Math.min(drawStartY, p.y),
+            width: Math.max(1, Math.abs(dx)),
+            height: Math.max(1, Math.abs(dy)),
+          });
+        } else if (drawTool === "circle") {
+          const radius = Math.max(1, Math.max(Math.abs(dx), Math.abs(dy)) / 2);
+          const cx = drawStartX + dx / 2;
+          const cy = drawStartY + dy / 2;
+          drawTemp.set({
+            left: cx - radius,
+            top: cy - radius,
+            radius,
+          });
+        } else if (drawTool === "arrow") {
+          const rad = Math.atan2(dy, dx);
+          const angle = (rad * 180) / Math.PI;
+          const dist = Math.hypot(dx, dy);
+          const scaledLen = Math.max(minArrowLen, dist);
+          const scale = scaledLen / baseArrowLen;
+          const offsetX = Math.cos(rad) * (scaledLen / 2);
+          const offsetY = Math.sin(rad) * (scaledLen / 2);
+          drawTemp.set({
+            left: p.x - offsetX,
+            top: p.y - offsetY,
+            angle,
+            scaleX: scale,
+            scaleY: scale,
+          });
+        }
+        c.requestRenderAll();
+      };
+
+      const finishDrawing = (p: { x: number; y: number }) => {
+        if (!isDrawing) return;
+
+        updateDrawing(p);
+        isDrawing = false;
+
+        if (drawTemp) {
+          const shouldReturnSelect = drawTool === "text";
+          drawTemp.set({ selectable: true, evented: true });
+          c.setActiveObject(drawTemp);
+          pushState();
+          drawTemp = null;
+          drawTool = null;
+          if (shouldReturnSelect && toolRef.current !== "select") {
+            toolRef.current = "select";
+            setTool("select");
           }
-
-          if (!drawTemp) return;
-          c.add(drawTemp);
-          c.requestRenderAll();
-        };
-
-        const updateDrawing = (p: { x: number; y: number }) => {
-          if (!isDrawing) return;
-          if (!drawTemp) return;
-
-          const dx = p.x - drawStartX;
-          const dy = p.y - drawStartY;
-
-          if (drawTool === "text") {
-            const baseFont = Math.max(6, fontSizeRef.current);
-            const scaleX = Math.max(0.1, Math.abs(dx) / baseFont);
-            const scaleY = Math.max(0.1, Math.abs(dy) / baseFont);
-            drawTemp.set({
-              left: drawStartX + dx / 2,
-              top: drawStartY + dy / 2,
-              scaleX,
-              scaleY,
-            });
-          } else if (drawTool === "rect") {
-            drawTemp.set({
-              left: Math.min(drawStartX, p.x),
-              top: Math.min(drawStartY, p.y),
-              width: Math.max(1, Math.abs(dx)),
-              height: Math.max(1, Math.abs(dy)),
-            });
-          } else if (drawTool === "circle") {
-            const radius = Math.max(1, Math.max(Math.abs(dx), Math.abs(dy)) / 2);
-            const cx = drawStartX + dx / 2;
-            const cy = drawStartY + dy / 2;
-            drawTemp.set({
-              left: cx - radius,
-              top: cy - radius,
-              radius,
-            });
-          } else if (drawTool === "arrow") {
-            const rad = Math.atan2(dy, dx);
-            const angle = (rad * 180) / Math.PI;
-            const dist = Math.hypot(dx, dy);
-            const scaledLen = Math.max(minArrowLen, dist);
-            const scale = scaledLen / baseArrowLen;
-            const offsetX = Math.cos(rad) * (scaledLen / 2);
-            const offsetY = Math.sin(rad) * (scaledLen / 2);
-            drawTemp.set({
-              left: p.x - offsetX,
-              top: p.y - offsetY,
-              angle,
-              scaleX: scale,
-              scaleY: scale,
-            });
-          }
-          c.requestRenderAll();
-        };
-
-        const finishDrawing = (p: { x: number; y: number }) => {
-          if (!isDrawing) return;
-
-          updateDrawing(p);
-          isDrawing = false;
-
-          if (drawTemp) {
-            const shouldReturnSelect = drawTool === "text";
-            drawTemp.set({ selectable: true, evented: true });
-            c.setActiveObject(drawTemp);
-            pushState();
-            drawTemp = null;
-            drawTool = null;
-            if (shouldReturnSelect && toolRef.current !== "select") {
-              toolRef.current = "select";
-              setTool("select");
-            }
-          }
-        };
+        }
+      };
 
       const onMouseDown = (opt: any) => {
         const p = getPointer(opt);
@@ -793,41 +812,41 @@ function ImageEditorModal(props: {
           return;
         }
 
-          startDrawing(p);
-        };
+        startDrawing(p);
+      };
 
-        const onMouseMove = (opt: any) => {
-          const p = getPointer(opt);
-          if (isCropping && cropTemp) {
-            const w = p.x - cropStartX;
-            const h = p.y - cropStartY;
-            cropTemp.set({
-              left: Math.min(cropStartX, p.x),
-              top: Math.min(cropStartY, p.y),
-              width: Math.abs(w),
-              height: Math.abs(h),
-            });
-            c.requestRenderAll();
-            return;
-          }
+      const onMouseMove = (opt: any) => {
+        const p = getPointer(opt);
+        if (isCropping && cropTemp) {
+          const w = p.x - cropStartX;
+          const h = p.y - cropStartY;
+          cropTemp.set({
+            left: Math.min(cropStartX, p.x),
+            top: Math.min(cropStartY, p.y),
+            width: Math.abs(w),
+            height: Math.abs(h),
+          });
+          c.requestRenderAll();
+          return;
+        }
 
-          updateDrawing(p);
-        };
+        updateDrawing(p);
+      };
 
-        const onMouseUp = (opt: any) => {
-          if (isCropping) {
-            isCropping = false;
-            if (!cropTemp) return;
-            cropTemp.set({ selectable: true, evented: true });
-            c.setActiveObject(cropTemp);
-            pushState();
-            cropTemp = null;
-            return;
-          }
+      const onMouseUp = (opt: any) => {
+        if (isCropping) {
+          isCropping = false;
+          if (!cropTemp) return;
+          cropTemp.set({ selectable: true, evented: true });
+          c.setActiveObject(cropTemp);
+          pushState();
+          cropTemp = null;
+          return;
+        }
 
-          const p = getPointer(opt);
-          finishDrawing(p);
-        };
+        const p = getPointer(opt);
+        finishDrawing(p);
+      };
 
       const onObjMod = () => pushState();
 
@@ -840,15 +859,15 @@ function ImageEditorModal(props: {
       c.on("object:removed", onObjMod);
 
       // resize
-        const ro = new ResizeObserver(() => {
-          // Keep relative placement by re-fitting bg only (simple)
-          const wrap = wrapRef.current;
-          if (!wrap) return;
-          if (canvasRef.current !== c || !c?.lowerCanvasEl) return;
-          const w = wrap.clientWidth;
-          const h = wrap.clientHeight;
-          c.setWidth(w);
-          c.setHeight(h);
+      const ro = new ResizeObserver(() => {
+        // Keep relative placement by re-fitting bg only (simple)
+        const wrap = wrapRef.current;
+        if (!wrap) return;
+        if (canvasRef.current !== c || !c?.lowerCanvasEl) return;
+        const w = wrap.clientWidth;
+        const h = wrap.clientHeight;
+        c.setWidth(w);
+        c.setHeight(h);
 
         // refit bg
         const bg2 = bgImgRef.current;
@@ -1066,7 +1085,7 @@ function ImageEditorModal(props: {
         c.requestRenderAll();
         pushState();
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [pushState]);
 
   useEffect(() => {
@@ -1441,11 +1460,32 @@ export default function Page() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recChunksRef = useRef<BlobPart[]>([]);
   const [isRecording, setIsRecording] = useState(false);
-  const [camBrightness, setCamBrightness] = useState(100);
-  const [camContrast, setCamContrast] = useState(100);
-  const [camSaturation, setCamSaturation] = useState(100);
-  const [camSharpness, setCamSharpness] = useState(50);
+  const camDefaults = useMemo(
+    () => ({
+      brightness: 100,
+      contrast: 100,
+      saturation: 100,
+      sharpness: 50,
+      cropLeft: 0,
+      cropRight: 0,
+      cropTop: 0,
+      cropBottom: 0,
+    }),
+    []
+  );
+  const [camBrightness, setCamBrightness] = useState(camDefaults.brightness);
+  const [camContrast, setCamContrast] = useState(camDefaults.contrast);
+  const [camSaturation, setCamSaturation] = useState(camDefaults.saturation);
+  const [camSharpness, setCamSharpness] = useState(camDefaults.sharpness);
+  const [camCropLeft, setCamCropLeft] = useState(camDefaults.cropLeft);
+  const [camCropRight, setCamCropRight] = useState(camDefaults.cropRight);
+  const [camCropTop, setCamCropTop] = useState(camDefaults.cropTop);
+  const [camCropBottom, setCamCropBottom] = useState(camDefaults.cropBottom);
+  const [camAdjustOpen, setCamAdjustOpen] = useState(false);
+  const camAdjustLoadingRef = useRef<string | null>(null);
+  const CAM_ADJUST_STORAGE_PREFIX = "vcapture_cam_adjust_";
   const camFilterRef = useRef("brightness(100%) contrast(100%) saturate(100%)");
+  const camCropRef = useRef({ left: 0, right: 0, top: 0, bottom: 0 });
   const renderCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const renderLoopRef = useRef<number | null>(null);
@@ -1496,6 +1536,98 @@ export default function Page() {
     }
   }, [computeCamFilter]);
 
+  useEffect(() => {
+    camCropRef.current = {
+      left: camCropLeft,
+      right: camCropRight,
+      top: camCropTop,
+      bottom: camCropBottom,
+    };
+  }, [camCropLeft, camCropRight, camCropTop, camCropBottom]);
+
+  useEffect(() => {
+    const deviceId = deviceSelected?.value;
+    if (!deviceId) return;
+    try {
+      const raw = localStorage.getItem(`${CAM_ADJUST_STORAGE_PREFIX}${deviceId}`);
+      if (!raw) return;
+      const data = JSON.parse(raw || "{}");
+      const clamp = (v: any, min: number, max: number, fallback: number) =>
+        typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
+      const br = clamp(data.brightness, 0, 200, camDefaults.brightness);
+      const ct = clamp(data.contrast, 50, 200, camDefaults.contrast);
+      const sa = clamp(data.saturation, 50, 200, camDefaults.saturation);
+      const sh = clamp(data.sharpness, 0, 100, camDefaults.sharpness);
+      setCamBrightness(br);
+      setCamContrast(ct);
+      setCamSaturation(sa);
+      setCamSharpness(sh);
+      setCamCropLeft(clamp(data.cropLeft, 0, 40, camDefaults.cropLeft));
+      setCamCropRight(clamp(data.cropRight, 0, 40, camDefaults.cropRight));
+      setCamCropTop(clamp(data.cropTop, 0, 40, camDefaults.cropTop));
+      setCamCropBottom(clamp(data.cropBottom, 0, 40, camDefaults.cropBottom));
+      camAdjustLoadingRef.current = deviceId;
+      setTimeout(() => {
+        if (camAdjustLoadingRef.current === deviceId) camAdjustLoadingRef.current = null;
+      }, 0);
+      if (streamRef.current?.getVideoTracks?.()[0]) {
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        applyCameraAdjust(br, sh);
+      }
+    } catch {
+      // ignore malformed storage
+    }
+  }, [deviceSelected, camDefaults, applyCameraAdjust]);
+
+  useEffect(() => {
+    const deviceId = deviceSelected?.value;
+    if (!deviceId) return;
+    if (camAdjustLoadingRef.current === deviceId) return;
+    const payload = {
+      brightness: camBrightness,
+      contrast: camContrast,
+      saturation: camSaturation,
+      sharpness: camSharpness,
+      cropLeft: camCropLeft,
+      cropRight: camCropRight,
+      cropTop: camCropTop,
+      cropBottom: camCropBottom,
+    };
+    try {
+      localStorage.setItem(`${CAM_ADJUST_STORAGE_PREFIX}${deviceId}`, JSON.stringify(payload));
+    } catch {
+      // ignore storage errors
+    }
+  }, [deviceSelected, camBrightness, camContrast, camSaturation, camSharpness, camCropLeft, camCropRight, camCropTop, camCropBottom]);
+
+  const previewCropTransform = useMemo(() => {
+    const clamp = (v: number) => Math.max(0, Math.min(60, v));
+    const l = clamp(camCropLeft) / 100;
+    const r = clamp(camCropRight) / 100;
+    const t = clamp(camCropTop) / 100;
+    const b = clamp(camCropBottom) / 100;
+    const wFactor = Math.max(0.05, 1 - l - r);
+    const hFactor = Math.max(0.05, 1 - t - b);
+    const sx = 1 / wFactor;
+    const sy = 1 / hFactor;
+    const tx = -l * sx * 100;
+    const ty = -t * sy * 100;
+    return `translate(${tx}%, ${ty}%) scale(${sx}, ${sy})`;
+  }, [camCropLeft, camCropRight, camCropTop, camCropBottom]);
+
+  const getCropPixels = useCallback((w: number, h: number) => {
+    const c = camCropRef.current;
+    const left = Math.max(0, Math.min(60, c.left));
+    const right = Math.max(0, Math.min(60, c.right));
+    const top = Math.max(0, Math.min(60, c.top));
+    const bottom = Math.max(0, Math.min(60, c.bottom));
+    const sx = Math.floor((w * left) / 100);
+    const sy = Math.floor((h * top) / 100);
+    const sw = Math.max(1, Math.floor(w * (1 - (left + right) / 100)));
+    const sh = Math.max(1, Math.floor(h * (1 - (top + bottom) / 100)));
+    return { sx, sy, sw, sh };
+  }, []);
+
   const stopRenderLoop = useCallback(() => {
     if (renderLoopRef.current) cancelAnimationFrame(renderLoopRef.current);
     renderLoopRef.current = null;
@@ -1522,7 +1654,8 @@ export default function Page() {
       const ctx = renderCtxRef.current;
       ctx.clearRect(0, 0, w, h);
       ctx.filter = camFilterRef.current;
-      ctx.drawImage(vid, 0, 0, w, h);
+      const { sx, sy, sw, sh } = getCropPixels(w, h);
+      ctx.drawImage(vid, sx, sy, sw, sh, 0, 0, w, h);
       ctx.filter = "none";
 
       renderLoopRef.current = requestAnimationFrame(draw);
@@ -1530,11 +1663,11 @@ export default function Page() {
 
     stopRenderLoop();
     renderLoopRef.current = requestAnimationFrame(draw);
-  }, [stopRenderLoop]);
+  }, [getCropPixels, stopRenderLoop]);
 
   const CameraAdjustControls = () => (
-    <div className="rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-[11px] text-white/70 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
-      <div className="flex items-center justify-between mb-1">
+    <div className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-[11px] text-white/70 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+      <div className="flex items-center justify-between mb-2">
         <span className="uppercase tracking-[0.08em] text-[10px] text-white/60">Adjust</span>
         <span className="text-white/40">Cam</span>
       </div>
@@ -1580,8 +1713,40 @@ export default function Page() {
             },
             suffix: "",
           },
+          {
+            label: "Crop L",
+            value: camCropLeft,
+            min: 0,
+            max: 40,
+            onChange: (v: number) => setCamCropLeft(v),
+            suffix: "%",
+          },
+          {
+            label: "Crop R",
+            value: camCropRight,
+            min: 0,
+            max: 40,
+            onChange: (v: number) => setCamCropRight(v),
+            suffix: "%",
+          },
+          {
+            label: "Crop T",
+            value: camCropTop,
+            min: 0,
+            max: 40,
+            onChange: (v: number) => setCamCropTop(v),
+            suffix: "%",
+          },
+          {
+            label: "Crop B",
+            value: camCropBottom,
+            min: 0,
+            max: 40,
+            onChange: (v: number) => setCamCropBottom(v),
+            suffix: "%",
+          },
         ].map((it) => (
-          <div key={it.label} className="grid grid-cols-[76px_1fr_40px] items-center gap-2">
+          <div key={it.label} className="grid grid-cols-[66px_1fr_56px_44px] items-center gap-2">
             <span className="text-white/65">{it.label}</span>
             <input
               type="range"
@@ -1589,7 +1754,20 @@ export default function Page() {
               max={it.max}
               value={it.value}
               onChange={(e) => it.onChange(Number(e.target.value))}
-              className="w-full accent-emerald-400"
+              className="w-full min-w-0 accent-emerald-400"
+            />
+            <input
+              type="number"
+              min={it.min}
+              max={it.max}
+              value={it.value}
+              onChange={(e) => {
+                const raw = Number(e.target.value);
+                if (Number.isNaN(raw)) return;
+                const v = Math.min(it.max, Math.max(it.min, raw));
+                it.onChange(v);
+              }}
+              className="h-8 w-full min-w-0 rounded-lg border border-white/10 bg-white/[0.06] px-2 text-right text-white/90 outline-none"
             />
             <span className="text-right text-white/70">
               {it.value}
@@ -1761,10 +1939,10 @@ export default function Page() {
       setHnDir(null);
       setVnDir(null);
       setOriginalDir(null);
-    setChooseDir(null);
-    setFiles([]);
-    setPreview(null);
-    setPreviewUrl(null);
+      setChooseDir(null);
+      setFiles([]);
+      setPreview(null);
+      setPreviewUrl(null);
 
       if (!opt || !vcDir) return;
       try {
@@ -1796,15 +1974,15 @@ export default function Page() {
 
   const selectHNFolder = useCallback(
     async (opt: Opt | null) => {
-    setHnSelected(opt);
-    setVnSelected(null);
-    setHnDir(null);
-    setVnDir(null);
-    setOriginalDir(null);
-    setChooseDir(null);
-    setFiles([]);
-    setPreview(null);
-    setPreviewUrl(null);
+      setHnSelected(opt);
+      setVnSelected(null);
+      setHnDir(null);
+      setVnDir(null);
+      setOriginalDir(null);
+      setChooseDir(null);
+      setFiles([]);
+      setPreview(null);
+      setPreviewUrl(null);
 
       if (!opt || !dateDir) return;
       try {
@@ -1969,11 +2147,14 @@ export default function Page() {
     try {
       const v = videoRef.current;
       const c = document.createElement("canvas");
-      c.width = v.videoWidth || 1280;
-      c.height = v.videoHeight || 720;
+      const w = v.videoWidth || 1280;
+      const h = v.videoHeight || 720;
+      c.width = w;
+      c.height = h;
       const ctx = c.getContext("2d")!;
       ctx.filter = camFilterRef.current;
-      ctx.drawImage(v, 0, 0, c.width, c.height);
+      const { sx, sy, sw, sh } = getCropPixels(w, h);
+      ctx.drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
       ctx.filter = "none";
 
       const blob = await new Promise<Blob>((resolve) => c.toBlob((b) => resolve(b!), "image/png"));
@@ -2040,7 +2221,7 @@ export default function Page() {
     } catch (e: any) {
       alertErr("เริ่มอัดวิดีโอไม่สำเร็จ", e?.message || String(e));
     }
-  }, [originalDir, canSave, refreshFiles, applyCameraAdjust, camBrightness, camSharpness, startRenderLoop, stopRenderLoop]);
+  }, [originalDir, canSave, refreshFiles, applyCameraAdjust, camBrightness, camSharpness, startRenderLoop, stopRenderLoop, getCropPixels]);
 
   const stopVideo = useCallback(() => {
     const rec = recorderRef.current;
@@ -2310,7 +2491,7 @@ export default function Page() {
 
             <div className="mt-3 flex gap-2">
               <PillButton onClick={openPicker} disabled={!originalDir || !chooseDir}>
-                เลือก/จัดการรูป
+                รีพอร์ท/เลือกจัดการรูป
               </PillButton>
               <PillButton onClick={refreshFiles} disabled={!originalDir}>
                 Refresh Files
@@ -2355,50 +2536,57 @@ export default function Page() {
                 theme={selectTheme}
               />
             </div>
-            <CameraAdjustControls />
+            <PillButton onClick={() => setCamAdjustOpen(true)}>Adjust</PillButton>
           </div>
         }
         className="col-span-12 lg:col-span-6 min-h-0"
       >
         <div className="flex flex-col h-full min-h-0">
           <div className="rounded-3xl border border-white/10 bg-black/40 overflow-hidden flex-1 min-h-0">
-            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full h-full object-contain"
+              style={{ transform: previewCropTransform, transformOrigin: "top left" }}
+            />
           </div>
 
           <div className="mt-3">
-            <CameraAdjustControls />
+            <PillButton onClick={() => setCamAdjustOpen(true)}>Adjust</PillButton>
           </div>
 
-            <div className="mt-4 flex items-center justify-between gap-3">
-              <div className="flex gap-2">
-                <PillButton onClick={openCamera}>เปิดกล้อง</PillButton>
-                  <PillButton onClick={stopStream} tone="danger">
-                    ปิดกล้อง
-                  </PillButton>
-                </div>
-
-                <div className="flex gap-2">
-                  <PillButton onClick={savePhoto} disabled={!streamRef.current || !canSave}>
-                    ถ่ายรูป (PNG)
-                  </PillButton>
-
-                  {!isRecording ? (
-                    <PillButton onClick={startVideo} disabled={!streamRef.current || !canSave}>
-                      อัดวิดีโอ
-                    </PillButton>
-                  ) : (
-                    <PillButton onClick={stopVideo} tone="danger">
-                      หยุดอัด
-                    </PillButton>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-3 text-[11px] text-white/45">
-                ต้องเลือก Date/HN/VN ก่อนบันทึก และจะบันทึกลง <span className="text-white/70">original</span> เท่านั้น
-              </div>
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="flex gap-2">
+              <PillButton onClick={openCamera}>เปิดกล้อง</PillButton>
+              <PillButton onClick={stopStream} tone="danger">
+                ปิดกล้อง
+              </PillButton>
             </div>
-          </GlassCard>
+
+            <div className="flex gap-2">
+              <PillButton onClick={savePhoto} disabled={!streamRef.current || !canSave}>
+                ถ่ายรูป (PNG)
+              </PillButton>
+
+              {!isRecording ? (
+                <PillButton onClick={startVideo} disabled={!streamRef.current || !canSave}>
+                  อัดวิดีโอ
+                </PillButton>
+              ) : (
+                <PillButton onClick={stopVideo} tone="danger">
+                  หยุดอัด
+                </PillButton>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-3 text-[11px] text-white/45">
+            ต้องเลือก Date/HN/VN ก่อนบันทึก และจะบันทึกลง <span className="text-white/70">original</span> เท่านั้น
+          </div>
+        </div>
+      </GlassCard>
 
       {/* Preview */}
       <GlassCard title="Preview" right={<div className="text-xs text-white/45">Auto after capture</div>} className="col-span-12 lg:col-span-6 min-h-0">
@@ -2463,9 +2651,8 @@ export default function Page() {
               {files.map((it) => (
                 <div
                   key={it.name}
-                  className={`rounded-2xl border p-3 flex gap-3 items-start flex-wrap sm:flex-nowrap ${
-                    preview?.name === it.name ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]"
-                  }`}
+                  className={`rounded-2xl border p-3 flex gap-3 items-start flex-wrap sm:flex-nowrap ${preview?.name === it.name ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]"
+                    }`}
                 >
                   <Thumb file={it} />
                   <div className="min-w-0 flex-1">
@@ -2510,7 +2697,7 @@ export default function Page() {
         {/* Top bar */}
         <div className="flex items-center justify-between gap-4 mb-4">
           <div className="rounded-3xl border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.55)] px-5 py-4">
-            <div className="font-semibold text-5xl">Intraview</div> 
+            <div className="font-semibold text-5xl">Intraview</div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -2665,7 +2852,7 @@ export default function Page() {
 
                     <div className="mt-3 flex gap-2">
                       <PillButton onClick={openPicker} disabled={!originalDir || !chooseDir}>
-                        เลือก/จัดการรูป
+                         รีพอร์ท/เลือกจัดการรูป
                       </PillButton>
                       <PillButton onClick={refreshFiles} disabled={!originalDir}>
                         Refresh Files
@@ -2710,7 +2897,7 @@ export default function Page() {
                       />
                     </div>
                     <div className="hidden xl:flex">
-                      <CameraAdjustControls />
+                      <PillButton onClick={() => setCamAdjustOpen(true)}>Adjust</PillButton>
                     </div>
                   </div>
                 }
@@ -2718,11 +2905,18 @@ export default function Page() {
               >
                 <div className="flex flex-col h-full min-h-0">
                   <div className="rounded-3xl border border-white/10 bg-black/40 overflow-hidden flex-1 min-h-0">
-                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      muted
+                      className="w-full h-full object-contain"
+                      style={{ transform: previewCropTransform, transformOrigin: "top left" }}
+                    />
                   </div>
 
                   <div className="mt-3 xl:hidden">
-                    <CameraAdjustControls />
+                    <PillButton onClick={() => setCamAdjustOpen(true)}>Adjust</PillButton>
                   </div>
 
                   <div className="mt-4 flex items-center justify-between gap-3">
@@ -2817,9 +3011,8 @@ export default function Page() {
                     {files.map((it) => (
                       <div
                         key={it.name}
-                        className={`rounded-2xl border p-3 flex gap-3 items-start flex-wrap sm:flex-nowrap cursor-pointer ${
-                          preview?.name === it.name ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]"
-                        }`}
+                        className={`rounded-2xl border p-3 flex gap-3 items-start flex-wrap sm:flex-nowrap cursor-pointer ${preview?.name === it.name ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]"
+                          }`}
                         onClick={() => setPreview(it)}
                         title="คลิกเพื่อ Preview"
                       >
@@ -2862,6 +3055,10 @@ export default function Page() {
         }}
         refreshSignal={pickerRefreshTick}
       />
+
+      <CameraAdjustModal open={camAdjustOpen} onClose={() => setCamAdjustOpen(false)}>
+        <CameraAdjustControls />
+      </CameraAdjustModal>
 
       <ImageEditorModal
         open={editorOpen}
