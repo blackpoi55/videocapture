@@ -160,36 +160,49 @@ export default function ReportPage() {
   }, [imagesState, originalImages]);
 
   const images = imagesState;
-  const { featuredImages, pageImages, extraCount, smallLimit } = useMemo(() => {
+  const {
+    featuredImages,
+    firstPageImages,
+    firstPageLimit,
+    extraPages,
+    extraCount,
+  } = useMemo(() => {
     const featured = images.filter((img) => img.featured);
     const featuredLimited = featured.slice(0, 2);
     const featuredIds = new Set(featuredLimited.map((img) => img.id));
     const remaining = images.filter((img) => !featuredIds.has(img.id));
     const limit =
       featuredLimited.length === 2 ? 0 : featuredLimited.length === 1 ? 3 : 6;
-    const page = remaining.slice(0, limit);
-    const extra = Math.max(0, images.length - (featuredLimited.length + page.length));
+    const firstPage = remaining.slice(0, limit);
+    const rest = remaining.slice(limit);
+    const pages: ReportImageItem[][] = [];
+    for (let i = 0; i < rest.length; i += 6) {
+      pages.push(rest.slice(i, i + 6));
+    }
     return {
       featuredImages: featuredLimited,
-      pageImages: page,
-      extraCount: extra,
-      smallLimit: limit,
+      firstPageImages: firstPage,
+      firstPageLimit: limit,
+      extraPages: pages,
+      extraCount: rest.length,
     };
   }, [images]);
 
-  const smallSlots = useMemo(() => {
-    const slots: Array<ReportImageItem | null> = [...pageImages];
-    const missing = Math.max(0, smallLimit - slots.length);
-    for (let i = 0; i < missing; i += 1) {
-      slots.push(null);
+  const firstPageSlots = useMemo(() => {
+    if (firstPageLimit === 0) {
+      return [];
     }
-    return slots;
-  }, [pageImages, smallLimit]);
+    if (images.length === 0) {
+      return Array.from({ length: firstPageLimit }, () => null);
+    }
+    return firstPageImages;
+  }, [firstPageImages, firstPageLimit, images.length]);
 
   const featuredCount = useMemo(
     () => imagesState.filter((img) => img.featured).length,
     [imagesState]
   );
+  const totalPages = useMemo(() => 2 + extraPages.length, [extraPages.length]);
 
   const reportId = `IV-${data?.vn || "000000"}-${printedAt.getFullYear().toString().slice(-2)}${String(
     printedAt.getMonth() + 1
@@ -400,7 +413,7 @@ export default function ReportPage() {
 
           <footer className="page-footer">
             <span>Intraview Medical Center</span>
-            <span>หน้า 1 / 2</span>
+            <span>หน้า 1 / {totalPages}</span>
           </footer>
         </section>
 
@@ -427,21 +440,23 @@ export default function ReportPage() {
             </div>
           )}
 
-          <div className="images-grid">
-            {smallSlots.map((img, idx) => (
-              <figure key={img ? img.id : `slot-${idx}`} className="image-card small">
-                {img ? (
-                  <img src={img.dataUrl} alt={img.name} />
-                ) : (
-                  <div className="image-placeholder">Image</div>
-                )}
-                <figcaption>{img ? img.name : "ภาพประกอบ"}</figcaption>
-              </figure>
-            ))}
-          </div>
+          {firstPageLimit > 0 && (
+            <div className="images-grid">
+              {firstPageSlots.map((img, idx) => (
+                <figure key={img ? img.id : `slot-${idx}`} className="image-card small">
+                  {img ? (
+                    <img src={img.dataUrl} alt={img.name} />
+                  ) : (
+                    <div className="image-placeholder">Image</div>
+                  )}
+                  <figcaption>{img ? img.name : "ภาพประกอบ"}</figcaption>
+                </figure>
+              ))}
+            </div>
+          )}
 
           {extraCount > 0 && (
-            <div className="extra-note">มีภาพเพิ่มเติมอีก {extraCount} รายการ (แสดงเฉพาะหน้า 2)</div>
+            <div className="extra-note">มีภาพเพิ่มเติมต่อในหน้าถัดไปอีก {extraCount} รายการ</div>
           )}
 
           <section className="section">
@@ -455,9 +470,35 @@ export default function ReportPage() {
 
           <footer className="page-footer">
             <span>Confidential Medical Report</span>
-            <span>หน้า 2 / 2</span>
+            <span>หน้า 2 / {totalPages}</span>
           </footer>
         </section>
+
+        {extraPages.map((page, index) => (
+          <section key={`report-images-${index}`} className="report-page">
+            <header className="report-header compact">
+              <div>
+                <div className="section-title">ภาพบันทึกการตรวจ (ต่อ)</div>
+                <div className="subtle">Image Documentation / เลือกจากโฟลเดอร์ choose</div>
+              </div>
+              <div className="chip">HN: {safeHN}</div>
+            </header>
+
+            <div className="images-grid">
+              {page.map((img) => (
+                <figure key={img.id} className="image-card small">
+                  <img src={img.dataUrl} alt={img.name} />
+                  <figcaption>{img.name}</figcaption>
+                </figure>
+              ))}
+            </div>
+
+            <footer className="page-footer">
+              <span>Confidential Medical Report</span>
+              <span>หน้า {index + 3} / {totalPages}</span>
+            </footer>
+          </section>
+        ))}
       </div>
 
       <style jsx global>{`
