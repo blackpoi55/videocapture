@@ -12,6 +12,7 @@ import "react-datepicker/dist/react-datepicker.css";
 const IDB_DB = "vcapture_db_v1";
 const IDB_STORE = "kv";
 const REPORT_STORAGE_KEY = "vcapture_report_payload";
+const LAST_SELECTION_KEY = "vcapture_last_selection";
 
 function idbOpen(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -139,6 +140,27 @@ function formatThaiBEDisplay(d: Date) {
   const y = toBEYear(d.getFullYear());
   return `${day} ${m} ${y}`;
 }
+
+function parseDateKey(key: string) {
+  if (!/^\d{6}$/.test(key)) return null;
+  const dd = Number(key.slice(0, 2));
+  const mm = Number(key.slice(2, 4));
+  const yy = Number(key.slice(4, 6));
+  const beYear = 2500 + yy;
+  const adYear = beYear - 543;
+  const date = new Date(adYear, mm - 1, dd);
+  return isNaN(date.getTime()) ? null : date;
+}
+
+type LastSelection = {
+  date: string;
+  dateLabel?: string;
+  pickedDate?: string;
+  hn?: string;
+  hnLabel?: string;
+  vn?: string;
+  vnLabel?: string;
+};
 
 /** ---------------------------
  *  File / Folder helpers (File System Access API)
@@ -1470,9 +1492,27 @@ export default function Page() {
   const [preview, setPreview] = useState<FileItem | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pickerRefreshTick, setPickerRefreshTick] = useState(0);
+  const [videoCountdown, setVideoCountdown] = useState<number | null>(null);
 
   // Camera
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const playSound = useCallback((name: string, volume = 1) => {
+    if (typeof window === "undefined") return;
+    const audio = new Audio(`/sound/${name}.mp3`);
+    audio.volume = Math.min(1, Math.max(0, volume));
+    audio.play().catch(() => {
+      // ignore failures (policy/permission)
+    });
+  }, []);
+
+  const runVideoCountdown = useCallback(async () => {
+    for (let i = 3; i >= 1; i--) {
+      setVideoCountdown(i);
+      playSound(String(i));
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    }
+    setVideoCountdown(null);
+  }, [playSound]);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [deviceSelected, setDeviceSelected] = useState<Opt | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -1520,6 +1560,24 @@ export default function Page() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const persistLastSelection = useCallback(() => {
+    if (!dateSelected?.value) return;
+    const payload: LastSelection = {
+      date: dateSelected.value,
+      dateLabel: dateSelected.label,
+      pickedDate: pickedDate ? pickedDate.toISOString() : undefined,
+      hn: hnSelected?.value,
+      hnLabel: hnSelected?.label,
+      vn: vnSelected?.value,
+      vnLabel: vnSelected?.label,
+    };
+    void idbSet(LAST_SELECTION_KEY, payload);
+  }, [dateSelected, hnSelected, pickedDate, vnSelected]);
+
+  useEffect(() => {
+    persistLastSelection();
+  }, [persistLastSelection]);
 
   const computeCamFilter = useCallback(
     (b?: number, c?: number, s?: number) => {
@@ -1963,7 +2021,8 @@ export default function Page() {
   }, []);
 
   const selectDateFolder = useCallback(
-    async (opt: Opt | null) => {
+    async (opt: Opt | null, options?: { silent?: boolean }) => {
+      const silent = options?.silent;
       setDateSelected(opt);
       setHnSelected(null);
       setVnSelected(null);
@@ -1976,13 +2035,15 @@ export default function Page() {
       setPreview(null);
       setPreviewUrl(null);
 
-      if (!opt || !vcDir) return;
+      if (!opt || !vcDir) return null;
       try {
         const d = await vcDir.getDirectoryHandle(opt.value);
         setDateDir(d);
         await loadHNOptions(d);
+        return d;
       } catch (e: any) {
-        alertErr("เปิด Date Folder ไม่สำเร็จ", e?.message || String(e));
+        if (!silent) alertErr("เปิด Date Folder ไม่สำเร็จ", e?.message || String(e));
+        return null;
       }
     },
     [vcDir, loadHNOptions]
@@ -2005,7 +2066,8 @@ export default function Page() {
   }, [dateDir, hnInput, loadHNOptions, loadVNOptions]);
 
   const selectHNFolder = useCallback(
-    async (opt: Opt | null) => {
+    async (opt: Opt | null, options?: { silent?: boolean }, parentDir?: DirHandle | null) => {
+      const silent = options?.silent;
       setHnSelected(opt);
       setVnSelected(null);
       setHnDir(null);
@@ -2016,13 +2078,16 @@ export default function Page() {
       setPreview(null);
       setPreviewUrl(null);
 
-      if (!opt || !dateDir) return;
+      const baseDir = parentDir ?? dateDir;
+      if (!opt || !baseDir) return null;
       try {
-        const h = await dateDir.getDirectoryHandle(opt.value);
+        const h = await baseDir.getDirectoryHandle(opt.value);
         setHnDir(h);
         await loadVNOptions(h);
+        return h;
       } catch (e: any) {
-        alertErr("เปิด HN Folder ไม่สำเร็จ", e?.message || String(e));
+        if (!silent) alertErr("เปิด HN Folder ไม่สำเร็จ", e?.message || String(e));
+        return null;
       }
     },
     [dateDir, loadVNOptions]
@@ -2049,14 +2114,15 @@ export default function Page() {
       // refresh file list
       const fl = await listFiles(orig);
       setFiles(fl);
-      setPreview((p) => (fl[0] ? fl[0] : p));
+      if (fl[0]) setPreviewKeepScroll(fl[0]);
     } catch (e: any) {
       alertErr("สร้าง VN ไม่สำเร็จ", e?.message || String(e));
     }
   }, [hnDir, vnInput, loadVNOptions]);
 
   const selectVNFolder = useCallback(
-    async (opt: Opt | null) => {
+    async (opt: Opt | null, options?: { silent?: boolean }, parentDir?: DirHandle | null) => {
+      const silent = options?.silent;
       setVnSelected(opt);
       setVnDir(null);
       setOriginalDir(null);
@@ -2064,9 +2130,10 @@ export default function Page() {
       setFiles([]);
       setPreview(null);
 
-      if (!opt || !hnDir) return;
+      const baseDir = parentDir ?? hnDir;
+      if (!opt || !baseDir) return;
       try {
-        const v = await hnDir.getDirectoryHandle(opt.value);
+        const v = await baseDir.getDirectoryHandle(opt.value);
         setVnDir(v);
 
         const orig = await ensureDir(v, "original");
@@ -2076,9 +2143,11 @@ export default function Page() {
 
         const fl = await listFiles(orig);
         setFiles(fl);
-        setPreview((p) => (fl[0] ? fl[0] : p));
+        if (fl[0]) setPreviewKeepScroll(fl[0]);
+        return v;
       } catch (e: any) {
-        alertErr("เปิด VN ไม่สำเร็จ", e?.message || String(e));
+        if (!silent) alertErr("เปิด VN ไม่สำเร็จ", e?.message || String(e));
+        return null;
       }
     },
     [hnDir]
@@ -2089,6 +2158,56 @@ export default function Page() {
     const fl = await listFiles(originalDir);
     setFiles(fl);
   }, [originalDir]);
+
+  const restoreSelectionVcRef = useRef<DirHandle | null>(null);
+
+  useEffect(() => {
+    if (!vcDir) {
+      restoreSelectionVcRef.current = null;
+      return;
+    }
+    if (restoreSelectionVcRef.current === vcDir) return;
+    restoreSelectionVcRef.current = vcDir;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const saved = await idbGet<LastSelection>(LAST_SELECTION_KEY);
+        if (!saved?.date) return;
+        if (cancelled) return;
+        const parsedDate = saved.pickedDate ? new Date(saved.pickedDate) : parseDateKey(saved.date);
+        if (parsedDate && !Number.isNaN(parsedDate.getTime())) {
+          setPickedDate(parsedDate);
+        }
+        const dateLabel =
+          saved.dateLabel || (parsedDate ? `${saved.date} — ${formatThaiBEDisplay(parsedDate)}` : saved.date);
+        const restoredDateDir = await selectDateFolder(
+          { value: saved.date, label: dateLabel },
+          { silent: true }
+        );
+        if (saved.hn) {
+          const restoredHnDir = await selectHNFolder(
+            { value: saved.hn, label: saved.hnLabel || saved.hn },
+            { silent: true },
+            restoredDateDir ?? undefined
+          );
+          if (saved.vn) {
+            await selectVNFolder(
+              { value: saved.vn, label: saved.vnLabel || saved.vn },
+              { silent: true },
+              restoredHnDir ?? undefined
+            );
+          }
+        }
+        await refreshFiles();
+      } catch {
+        // ignore restore failures
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [vcDir, selectDateFolder, selectHNFolder, selectVNFolder, refreshFiles]);
 
   /** ----- current path click: copy + refresh + scroll ----- */
   const filesPanelRef = useRef<HTMLDivElement | null>(null);
@@ -2116,7 +2235,7 @@ export default function Page() {
     }
   }, [currentPathText, refreshFiles]);
 
-  const setPreviewKeepScroll = useCallback((it: FileItem) => {
+  const setPreviewKeepScroll = useCallback((it: FileItem | null) => {
     previewScrollTopRef.current = filesListRef.current?.scrollTop ?? 0;
     pageScrollTopRef.current = window.scrollY || 0;
     setPreview(it);
@@ -2180,11 +2299,12 @@ export default function Page() {
       streamRef.current = s;
       if (videoRef.current) videoRef.current.srcObject = s;
       await applyCameraAdjust(camBrightness, camSharpness);
+      await refreshFiles();
       alertOk("เปิดกล้องแล้ว");
     } catch (e: any) {
       alertErr("เปิดกล้องไม่สำเร็จ", e?.message || String(e));
     }
-  }, [deviceSelected, stopStream, applyCameraAdjust, camBrightness, camSharpness]);
+  }, [deviceSelected, stopStream, applyCameraAdjust, camBrightness, camSharpness, refreshFiles]);
 
   /** ----- Save helpers (original only) ----- */
   const canSave = !!originalDir && !!dateSelected && !!hnSelected && !!vnSelected;
@@ -2216,20 +2336,23 @@ export default function Page() {
       await refreshFiles();
       const fl = await listFiles(originalDir);
       const just = fl.find((x) => x.name === name) || fl[0] || null;
-      setPreview(just);
+      setPreviewKeepScroll(just);
       alertOk("ถ่ายรูปสำเร็จ", name);
+      playSound("capture");
     } catch (e: any) {
       alertErr("ถ่ายรูปไม่สำเร็จ", e?.message || String(e));
     }
-  }, [originalDir, canSave, refreshFiles]);
+  }, [originalDir, canSave, refreshFiles, playSound]);
 
   const startVideo = useCallback(async () => {
+    if (videoCountdown !== null) return;
     if (!originalDir) return alertErr("ยังไม่มีโฟลเดอร์ original");
     if (!canSave) return alertErr("ต้องเลือก Date/HN/VN ก่อนบันทึก");
     const s = streamRef.current;
     if (!s) return alertErr("ยังไม่ได้เปิดกล้อง");
 
     try {
+      await runVideoCountdown();
       // draw filtered frames to hidden canvas, then record that stream (keeps filters in video)
       startRenderLoop();
       const canvasStream = (renderCanvasRef.current || document.createElement("canvas")).captureStream(30);
@@ -2252,7 +2375,7 @@ export default function Page() {
           await refreshFiles();
           const fl = await listFiles(originalDir);
           const just = fl.find((x) => x.name === name) || fl[0] || null;
-          setPreview(just);
+          setPreviewKeepScroll(just);
           alertOk("บันทึกวิดีโอสำเร็จ", name);
         } catch (e: any) {
           alertErr("บันทึกวิดีโอไม่สำเร็จ", e?.message || String(e));
@@ -2267,19 +2390,35 @@ export default function Page() {
       rec.start(200);
       setIsRecording(true);
       alertInfo("กำลังอัดวิดีโอ...");
+      playSound("recording");
       await applyCameraAdjust(camBrightness, camSharpness);
     } catch (e: any) {
       alertErr("เริ่มอัดวิดีโอไม่สำเร็จ", e?.message || String(e));
+    } finally {
+      setVideoCountdown(null);
     }
-  }, [originalDir, canSave, refreshFiles, applyCameraAdjust, camBrightness, camSharpness, startRenderLoop, stopRenderLoop, getCropPixels]);
+  }, [
+    applyCameraAdjust,
+    camBrightness,
+    camSharpness,
+    canSave,
+    originalDir,
+    refreshFiles,
+    runVideoCountdown,
+    startRenderLoop,
+    stopRenderLoop,
+    videoCountdown,
+    playSound,
+  ]);
 
   const stopVideo = useCallback(() => {
     const rec = recorderRef.current;
     if (!rec) return;
     try {
       rec.stop();
+      playSound("recordend");
     } catch { }
-  }, []);
+  }, [playSound]);
 
   /** ----- Preview URL management ----- */
   useEffect(() => {
@@ -2484,7 +2623,7 @@ export default function Page() {
         className="col-span-12 lg:col-span-6 min-h-0"
       >
         <div className="flex flex-col h-full min-h-0">
-          <div className="rounded-3xl border border-white/10 bg-black/40 overflow-hidden flex-1 min-h-0">
+          <div className="relative rounded-3xl border border-white/10 bg-black/40 overflow-hidden flex-1 min-h-0">
             <video
               ref={videoRef}
               autoPlay
@@ -2493,6 +2632,11 @@ export default function Page() {
               className="w-full h-full object-contain"
               style={{ transform: previewCropTransform, transformOrigin: "top left" }}
             />
+            {videoCountdown !== null && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/70 text-[120px] font-semibold text-white/90 pointer-events-none">
+                {videoCountdown}
+              </div>
+            )}
           </div>
 
           <div className="mt-3 xl:hidden">
@@ -2508,12 +2652,12 @@ export default function Page() {
             </div>
 
             <div className="flex gap-2">
-              <PillButton onClick={savePhoto} disabled={!streamRef.current || !canSave}>
+              <PillButton onClick={savePhoto} disabled={!streamRef.current || !canSave || videoCountdown !== null}>
                 ถ่ายรูป (PNG)
               </PillButton>
 
               {!isRecording ? (
-                <PillButton onClick={startVideo} disabled={!streamRef.current || !canSave}>
+                <PillButton onClick={startVideo} disabled={!streamRef.current || !canSave || videoCountdown !== null}>
                   อัดวิดีโอ
                 </PillButton>
               ) : (
