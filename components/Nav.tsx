@@ -12,27 +12,41 @@ const navItems = [
 export default function Nav() {
   const pathname = usePathname();
   const router = useRouter();
+  const normalizePath = (value: string) => (value === "/" ? "/" : value.replace(/\/+$/, ""));
+  const cleanPath = normalizePath(pathname || "/");
+  const linkBase =
+    "rounded-full px-4 py-2 text-[13px] font-semibold transition-all duration-150 border";
+  const linkInactive =
+    "text-slate-200/70 bg-slate-900/35 border-slate-400/20 hover:text-slate-100 hover:bg-slate-800/70 hover:border-slate-400/40";
+  const linkActive =
+    "text-slate-900 font-extrabold bg-gradient-to-br from-teal-300/95 to-blue-500/90 border-sky-300/80 shadow-[0_10px_24px_rgba(59,130,246,0.28)]";
 
   return (
-    <nav className="app-nav" aria-label="Primary">
-      <div className="nav-inner">
-        <div className="nav-left">
-          <div onClick={() => router.push("/")} className="nav-brand cursor-pointer">
-            <div className="brand-mark">IV</div>
-            <div className="brand-text">
-              <div className="brand-title">Intraview</div>
-              <div className="brand-subtitle">Video Capture Suite</div>
+    <nav
+      className="sticky top-0 z-50 border-b border-slate-400/20 bg-slate-950/70 backdrop-blur-lg print:hidden"
+      aria-label="Primary"
+    >
+      <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-3 py-3 max-[720px]:flex-col max-[720px]:items-start">
+        <div className="flex items-center gap-4 flex-wrap">
+          <div onClick={() => router.push("/")} className="flex cursor-pointer items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-[14px] border border-emerald-300/40 bg-gradient-to-br from-emerald-400/35 to-emerald-700/10 font-bold uppercase tracking-[0.16em] text-slate-200">
+              IV
+            </div>
+            <div className="leading-tight">
+              <div className="text-[13px] font-bold uppercase tracking-[0.32em] text-slate-200">Intraview</div>
+              <div className="mt-0.5 text-[12px] text-slate-200/60">Video Capture Suite</div>
             </div>
           </div>
 
-          <div className="nav-links">
+          <div className="flex flex-wrap items-center gap-2">
             {navItems.map((item) => {
-              const isActive = pathname === item.href;
+              const href = normalizePath(item.href);
+              const isActive = cleanPath === href || (href !== "/" && cleanPath.startsWith(`${href}/`));
               return (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className={`nav-link${isActive ? " active" : ""}`}
+                  className={`${linkBase} ${isActive ? linkActive : linkInactive}`}
                   aria-current={isActive ? "page" : undefined}
                 >
                   {item.label}
@@ -42,143 +56,21 @@ export default function Nav() {
           </div>
         </div>
 
-        <div className="nav-actions">
-          <button type="button" className="nav-action ghost">
+        <div className="flex items-center gap-2 max-[720px]:w-full max-[720px]:justify-end">
+          <button
+            type="button"
+            className="rounded-full border border-slate-400/35 px-4 py-2 text-[12px] font-bold uppercase tracking-[0.2em] text-slate-200/80 transition hover:border-slate-300/60"
+          >
             Login
           </button>
-          <button type="button" className="nav-action">
+          <button
+            type="button"
+            className="rounded-full border border-emerald-300/40 bg-gradient-to-br from-emerald-400/35 to-emerald-700/55 px-4 py-2 text-[12px] font-bold uppercase tracking-[0.2em] text-slate-100 transition hover:-translate-y-0.5 hover:border-slate-300/60"
+          >
             Logout
           </button>
         </div>
       </div>
-
-      <style jsx>{`
-        .app-nav {
-          position: sticky;
-          top: 0;
-          z-index: 50;
-          border-bottom: 1px solid rgba(148, 163, 184, 0.16);
-          background: rgba(2, 6, 23, 0.72);
-          backdrop-filter: blur(18px);
-        }
-        .nav-inner {
-          /* max-width: 1400px; */
-          margin: 0 auto;
-          padding: 12px 12px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 16px;
-        }
-        .nav-left {
-          display: flex;
-          align-items: center;
-          gap: 18px;
-          flex-wrap: wrap;
-        }
-        .nav-brand {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-        .brand-mark {
-          width: 40px;
-          height: 40px;
-          border-radius: 14px;
-          display: grid;
-          place-items: center;
-          font-weight: 700;
-          letter-spacing: 0.16em;
-          color: #e2e8f0;
-          background: linear-gradient(135deg, rgba(20, 184, 166, 0.35), rgba(15, 118, 110, 0.1));
-          border: 1px solid rgba(20, 184, 166, 0.4);
-          text-transform: uppercase;
-        }
-        .brand-title {
-          font-size: 13px;
-          letter-spacing: 0.32em;
-          text-transform: uppercase;
-          color: #e2e8f0;
-          font-weight: 700;
-        }
-        .brand-subtitle {
-          font-size: 12px;
-          color: rgba(226, 232, 240, 0.6);
-          margin-top: 2px;
-        }
-        .nav-links {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-        .nav-link {
-          padding: 8px 14px;
-          border-radius: 999px;
-          font-size: 13px;
-          font-weight: 600;
-          color: rgba(226, 232, 240, 0.7);
-          text-decoration: none;
-          background: rgba(15, 23, 42, 0.55);
-          border: 1px solid transparent;
-          transition: all 160ms ease;
-        }
-        .nav-link:hover {
-          color: #e2e8f0;
-          border-color: rgba(148, 163, 184, 0.35);
-          background: rgba(30, 41, 59, 0.55);
-        }
-        .nav-link.active {
-          color: #f8fafc;
-          font-weight: 700;
-          border-color: rgba(20, 184, 166, 0.45);
-          background: linear-gradient(135deg, rgba(20, 184, 166, 0.25), rgba(15, 118, 110, 0.45));
-        }
-        .nav-actions {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-        .nav-action {
-          padding: 8px 16px;
-          border-radius: 999px;
-          font-size: 12px;
-          font-weight: 700;
-          letter-spacing: 0.2em;
-          text-transform: uppercase;
-          color: #e2e8f0;
-          background: linear-gradient(135deg, rgba(20, 184, 166, 0.35), rgba(15, 118, 110, 0.55));
-          border: 1px solid rgba(20, 184, 166, 0.4);
-          transition: all 160ms ease;
-        }
-        .nav-action.ghost {
-          background: transparent;
-          color: rgba(226, 232, 240, 0.75);
-          border-color: rgba(148, 163, 184, 0.35);
-        }
-        .nav-action:hover {
-          transform: translateY(-1px);
-          border-color: rgba(148, 163, 184, 0.45);
-        }
-        @media (max-width: 720px) {
-          .nav-inner {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-          .nav-links {
-            width: 100%;
-          }
-          .nav-actions {
-            width: 100%;
-            justify-content: flex-end;
-          }
-        }
-        @media print {
-          .app-nav {
-            display: none;
-          }
-        }
-      `}</style>
     </nav>
   );
 }
