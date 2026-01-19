@@ -574,6 +574,28 @@ function ImageEditorModal(props: {
   const fontSizeRef = useRef(fontSize);
   const strokeWRef = useRef(strokeW);
 
+  const buildAdjustFilters = useCallback((lib: any) => {
+    const filtersLib = lib.filters || lib.Image?.filters || lib.fabric?.filters;
+    if (!filtersLib) return [];
+
+    const filters: any[] = [];
+    const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+    const { brightness, contrast, saturation, shadow } = imgAdjustRef.current;
+    const br = clamp(brightness, -100, 100) / 100;
+    const ct = clamp(contrast, -100, 100) / 100;
+    const sa = clamp(saturation, -100, 100) / 100;
+    const sh = clamp(shadow, -100, 100);
+
+    if (br !== 0 && filtersLib.Brightness) filters.push(new filtersLib.Brightness({ brightness: br }));
+    if (ct !== 0 && filtersLib.Contrast) filters.push(new filtersLib.Contrast({ contrast: ct }));
+    if (sa !== 0 && filtersLib.Saturation) filters.push(new filtersLib.Saturation({ saturation: sa }));
+    if (sh !== 0 && filtersLib.Gamma) {
+      const gamma = clamp(1 + (sh / 100) * 0.8, 0.2, 2.2);
+      filters.push(new filtersLib.Gamma({ gamma: [gamma, gamma, gamma] }));
+    }
+    return filters;
+  }, []);
+
   const applyStyleToActive = useCallback(() => {
     const c = canvasRef.current;
     if (!c) return;
@@ -609,29 +631,11 @@ function ImageEditorModal(props: {
     const fabric = fabricRef.current as any;
     if (!c || !bg || !fabric) return;
 
-    const filtersLib = fabric.filters || fabric.Image?.filters || fabric.fabric?.filters;
-    if (!filtersLib) return;
-
-    const filters: any[] = [];
-    const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
-    const { brightness, contrast, saturation, shadow } = imgAdjustRef.current;
-    const br = clamp(brightness, -100, 100) / 100;
-    const ct = clamp(contrast, -100, 100) / 100;
-    const sa = clamp(saturation, -100, 100) / 100;
-    const sh = clamp(shadow, -100, 100);
-
-    if (br !== 0 && filtersLib.Brightness) filters.push(new filtersLib.Brightness({ brightness: br }));
-    if (ct !== 0 && filtersLib.Contrast) filters.push(new filtersLib.Contrast({ contrast: ct }));
-    if (sa !== 0 && filtersLib.Saturation) filters.push(new filtersLib.Saturation({ saturation: sa }));
-    if (sh !== 0 && filtersLib.Gamma) {
-      const gamma = clamp(1 + (sh / 100) * 0.8, 0.2, 2.2);
-      filters.push(new filtersLib.Gamma({ gamma: [gamma, gamma, gamma] }));
-    }
-
+    const filters = buildAdjustFilters(fabric);
     bg.filters = filters;
     bg.applyFilters();
     c.requestRenderAll();
-  }, []);
+  }, [buildAdjustFilters]);
 
   const pushState = useCallback(() => { }, []);
 
@@ -1332,6 +1336,92 @@ function ImageEditorModal(props: {
     }
   }, [file, chooseDir, onSaved, onClose]);
 
+  const saveAllAdjust = useCallback(async () => {
+    if (!chooseDir) return;
+    try {
+      setBusy(true);
+      const files = (await listFiles(chooseDir)).filter((it) => isImageType(it.type, it.name));
+      if (files.length === 0) {
+        alertInfo("ไม่มีไฟล์รูปใน choose", "เพิ่มรูปก่อนแล้วค่อยลองใหม่");
+        return;
+      }
+
+      let savedCount = 0;
+      const currentName = file?.name ?? null;
+      if (currentName && canvasRef.current) {
+        const c = canvasRef.current;
+        const blob = await new Promise<Blob>((resolve, reject) => {
+          c
+            .toCanvasElement()
+            .toBlob(
+              (b: Blob | null) => (b ? resolve(b) : reject(new Error("Export canvas failed"))),
+              "image/png"
+            );
+        });
+        const currentHandle = await chooseDir.getFileHandle(currentName, { create: true });
+        await writeFile(currentHandle, blob);
+        savedCount += 1;
+      }
+
+      const fabric = fabricRef.current ?? (await import("fabric"));
+      fabricRef.current = fabric;
+      const { Canvas, FabricImage } = fabric as any;
+
+      const batchCanvasEl = document.createElement("canvas");
+      const batchCanvas = new Canvas(batchCanvasEl, { selection: false });
+
+      for (const item of files) {
+        if (currentName && item.name === currentName) continue;
+        const fileHandle = await chooseDir.getFileHandle(item.name);
+        const f = await fileHandle.getFile();
+        const url = URL.createObjectURL(f);
+        try {
+          const imgEl = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const im = new Image();
+            im.onload = () => resolve(im);
+            im.onerror = reject;
+            im.src = url;
+          });
+
+          batchCanvas.clear();
+          batchCanvas.setWidth(imgEl.naturalWidth || imgEl.width);
+          batchCanvas.setHeight(imgEl.naturalHeight || imgEl.height);
+
+          const bg = new FabricImage(imgEl, { selectable: false, evented: false });
+          const filters = buildAdjustFilters(fabric);
+          bg.filters = filters;
+          bg.applyFilters();
+          bg.set({ left: 0, top: 0, scaleX: 1, scaleY: 1 });
+          batchCanvas.add(bg);
+          batchCanvas.requestRenderAll();
+
+          const blob = await new Promise<Blob>((resolve, reject) => {
+            batchCanvas
+              .toCanvasElement()
+              .toBlob(
+                (b: Blob | null) => (b ? resolve(b) : reject(new Error("Export canvas failed"))),
+                "image/png"
+              );
+          });
+
+          await writeFile(fileHandle, blob);
+          savedCount += 1;
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+      }
+
+      batchCanvas.dispose();
+      await onSaved();
+      alertOk("บันทึกทุกไฟล์แล้ว", `${savedCount} ไฟล์`);
+      onClose();
+    } catch (e: any) {
+      alertErr("บันทึกทั้งหมดไม่สำเร็จ", e?.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  }, [chooseDir, onSaved, onClose, buildAdjustFilters, file]);
+
   if (!open) return null;
 
   return (
@@ -1343,6 +1433,9 @@ function ImageEditorModal(props: {
             <div className="text-xs text-white/45">Text / Arrow / Shape / Crop / Move / Resize / Rotate / Flip</div>
           </div>
           <div className="flex gap-2">
+            <PillButton onClick={saveAllAdjust} disabled={busy}>
+              Save Adjust all images in choose
+            </PillButton>
             <PillButton onClick={save} disabled={busy}>
               Save
             </PillButton>
@@ -1667,7 +1760,7 @@ export default function Page() {
     }
   }, []);
 
-  const playCaptureSound = useCallback((name: string, seqId: number, rate = 1.9) => {
+  const playCaptureSound = useCallback((name: string, seqId: number, rate = 1.6) => {
     if (typeof window === "undefined") return Promise.resolve();
     return new Promise<void>((resolve) => {
       if (seqId !== captureSeqRef.current) {
@@ -2947,39 +3040,39 @@ export default function Page() {
             >
               {files.length === 0 && <div className="text-sm text-white/50">ยังไม่มีไฟล์ในโฟลเดอร์นี้</div>}
 
-                {files.map((it) => (
-                  <div
-                    key={it.name}
-                    className={`rounded-2xl border p-3 flex gap-3 items-start cursor-pointer ${preview?.name === it.name ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]"
-                      }`}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => setPreviewKeepScroll(it)}
-                    title="คลิกเพื่อ Preview"
-                  >
-                    <Thumb file={it} />
-                    <div className="min-w-0 flex-1">
-                      <button
-                        type="button"
-                        className="text-sm text-white/90 truncate hover:underline"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => setPreviewKeepScroll(it)}
-                        title="คลิกเพื่อ Preview"
-                      >
-                        {it.name}
-                      </button>
-                      <div className="text-[11px] text-white/50 flex items-center justify-between gap-2">
-                        <span className="truncate min-w-0">{it.type || "unknown"}</span>
-                        <span>{humanSize(it.size)}</span>
-                      </div>
-                      <div className="mt-2 flex gap-2 flex-wrap">
-                        <PillButton onClick={() => downloadFile(it)}>Download</PillButton>
-                        <PillButton tone="danger" onClick={() => deleteFile(it)} disabled={!originalDir}>
-                          Delete
-                        </PillButton>
-                      </div>
+              {files.map((it) => (
+                <div
+                  key={it.name}
+                  className={`rounded-2xl border p-3 flex gap-3 items-start cursor-pointer ${preview?.name === it.name ? "border-emerald-400/60 bg-emerald-500/10" : "border-white/10 bg-white/[0.04]"
+                    }`}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setPreviewKeepScroll(it)}
+                  title="คลิกเพื่อ Preview"
+                >
+                  <Thumb file={it} />
+                  <div className="min-w-0 flex-1">
+                    <button
+                      type="button"
+                      className="text-sm text-white/90 truncate hover:underline"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setPreviewKeepScroll(it)}
+                      title="คลิกเพื่อ Preview"
+                    >
+                      {it.name}
+                    </button>
+                    <div className="text-[11px] text-white/50 flex items-center justify-between gap-2">
+                      <span className="truncate min-w-0">{it.type || "unknown"}</span>
+                      <span>{humanSize(it.size)}</span>
+                    </div>
+                    <div className="mt-2 flex gap-2 flex-wrap">
+                      <PillButton onClick={() => downloadFile(it)}>Download</PillButton>
+                      <PillButton tone="danger" onClick={() => deleteFile(it)} disabled={!originalDir}>
+                        Delete
+                      </PillButton>
                     </div>
                   </div>
-                ))}
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -3169,7 +3262,7 @@ export default function Page() {
 
                     <div className="mt-3 flex gap-2">
                       <PillButton onClick={openPicker} disabled={!originalDir || !chooseDir}>
-                         รีพอร์ท/เลือกจัดการรูป
+                        รีพอร์ท/เลือกจัดการรูป
                       </PillButton>
                       <PillButton onClick={refreshFiles} disabled={!originalDir}>
                         Refresh Files
