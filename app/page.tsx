@@ -561,6 +561,11 @@ function ImageEditorModal(props: {
   const [fill, setFill] = useState("rgba(0,0,0,0)");
   const [fontSize, setFontSize] = useState(40);
   const [strokeW, setStrokeW] = useState(6);
+  const [imgBrightness, setImgBrightness] = useState(0);
+  const [imgContrast, setImgContrast] = useState(0);
+  const [imgSaturation, setImgSaturation] = useState(0);
+  const [imgShadow, setImgShadow] = useState(0);
+  const imgAdjustRef = useRef({ brightness: 0, contrast: 0, saturation: 0, shadow: 0 });
   const transparentFill = "rgba(0,0,0,0)";
   const [busy, setBusy] = useState(false);
   const toolRef = useRef(tool);
@@ -595,6 +600,36 @@ function ImageEditorModal(props: {
         strokeWidth: strokeWRef.current,
       });
     }
+    c.requestRenderAll();
+  }, []);
+
+  const applyImageAdjustments = useCallback(() => {
+    const c = canvasRef.current;
+    const bg = bgImgRef.current;
+    const fabric = fabricRef.current as any;
+    if (!c || !bg || !fabric) return;
+
+    const filtersLib = fabric.filters || fabric.Image?.filters || fabric.fabric?.filters;
+    if (!filtersLib) return;
+
+    const filters: any[] = [];
+    const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+    const { brightness, contrast, saturation, shadow } = imgAdjustRef.current;
+    const br = clamp(brightness, -100, 100) / 100;
+    const ct = clamp(contrast, -100, 100) / 100;
+    const sa = clamp(saturation, -100, 100) / 100;
+    const sh = clamp(shadow, -100, 100);
+
+    if (br !== 0 && filtersLib.Brightness) filters.push(new filtersLib.Brightness({ brightness: br }));
+    if (ct !== 0 && filtersLib.Contrast) filters.push(new filtersLib.Contrast({ contrast: ct }));
+    if (sa !== 0 && filtersLib.Saturation) filters.push(new filtersLib.Saturation({ saturation: sa }));
+    if (sh !== 0 && filtersLib.Gamma) {
+      const gamma = clamp(1 + (sh / 100) * 0.8, 0.2, 2.2);
+      filters.push(new filtersLib.Gamma({ gamma: [gamma, gamma, gamma] }));
+    }
+
+    bg.filters = filters;
+    bg.applyFilters();
     c.requestRenderAll();
   }, []);
 
@@ -668,6 +703,7 @@ function ImageEditorModal(props: {
       });
       c.add(bg);
       c.sendObjectToBack(bg);
+      applyImageAdjustments();
 
       // tool drawing (single-click to drop; crop uses drag)
       const getPointer = (opt: any) => c.getPointer(opt.e);
@@ -961,6 +997,25 @@ function ImageEditorModal(props: {
   }, [strokeW, applyStyleToActive]);
 
   useEffect(() => {
+    imgAdjustRef.current = {
+      brightness: imgBrightness,
+      contrast: imgContrast,
+      saturation: imgSaturation,
+      shadow: imgShadow,
+    };
+    if (!open) return;
+    applyImageAdjustments();
+  }, [imgBrightness, imgContrast, imgSaturation, imgShadow, open, applyImageAdjustments]);
+
+  useEffect(() => {
+    if (!open) return;
+    setImgBrightness(0);
+    setImgContrast(0);
+    setImgSaturation(0);
+    setImgShadow(0);
+  }, [open, file?.name]);
+
+  useEffect(() => {
     if (!open) return;
     // reset stacks per open
     destroyCanvas();
@@ -1224,6 +1279,7 @@ function ImageEditorModal(props: {
       bg.set({ left: 0, top: 0 });
       c.add(bg);
       c.sendObjectToBack(bg);
+      applyImageAdjustments();
       c.requestRenderAll();
 
       alertOk("Crop เรียบร้อย");
@@ -1232,7 +1288,7 @@ function ImageEditorModal(props: {
     } finally {
       setBusy(false);
     }
-  }, [pushState]);
+  }, [pushState, applyImageAdjustments]);
 
   const onCropButton = useCallback(async () => {
     const c = canvasRef.current;
@@ -1352,6 +1408,85 @@ function ImageEditorModal(props: {
                   />
                 </label>
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-white/60">Adjust Image</div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImgBrightness(0);
+                    setImgContrast(0);
+                    setImgSaturation(0);
+                    setImgShadow(0);
+                  }}
+                  className="text-[11px] text-white/50 hover:text-white"
+                >
+                  Reset
+                </button>
+              </div>
+
+              <label className="text-xs text-white/60 flex flex-col gap-2">
+                Brightness
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={-100}
+                    max={100}
+                    value={imgBrightness}
+                    onChange={(e) => setImgBrightness(Number(e.target.value))}
+                    className="w-full"
+                  />
+                  <span className="text-[11px] text-white/45 w-10 text-right">{imgBrightness}</span>
+                </div>
+              </label>
+
+              <label className="text-xs text-white/60 flex flex-col gap-2">
+                Contrast
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={-100}
+                    max={100}
+                    value={imgContrast}
+                    onChange={(e) => setImgContrast(Number(e.target.value))}
+                    className="w-full"
+                  />
+                  <span className="text-[11px] text-white/45 w-10 text-right">{imgContrast}</span>
+                </div>
+              </label>
+
+              <label className="text-xs text-white/60 flex flex-col gap-2">
+                Saturation
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={-100}
+                    max={100}
+                    value={imgSaturation}
+                    onChange={(e) => setImgSaturation(Number(e.target.value))}
+                    className="w-full"
+                  />
+                  <span className="text-[11px] text-white/45 w-10 text-right">{imgSaturation}</span>
+                </div>
+              </label>
+
+              <label className="text-xs text-white/60 flex flex-col gap-2">
+                Shadow
+                <div className="flex items-center gap-2">
+                  <input
+                    type="range"
+                    min={-100}
+                    max={100}
+                    value={imgShadow}
+                    onChange={(e) => setImgShadow(Number(e.target.value))}
+                    className="w-full"
+                  />
+                  <span className="text-[11px] text-white/45 w-10 text-right">{imgShadow}</span>
+                </div>
+              </label>
+              <div className="text-[11px] text-white/45">ปรับแสง/เงาเฉพาะภาพพื้นหลัง (ไม่กระทบวัตถุที่วาด)</div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 space-y-2">
