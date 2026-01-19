@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Calendar, dateFnsLocalizer, SlotInfo, Views } from "react-big-calendar";
+import { Calendar, dateFnsLocalizer, SlotInfo, View, Views } from "react-big-calendar";
 import { addDays, addHours, addMonths, differenceInCalendarDays, format, getDay, parse, startOfWeek, subMonths } from "date-fns";
-import th from "date-fns/locale/th";
+import { th } from "date-fns/locale/th";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
 type CaseItem = {
@@ -33,8 +33,8 @@ const locales = { th };
 
 const localizer = dateFnsLocalizer({
   format,
-  parse: (value, formatString) => parse(value, formatString, new Date()),
-  startOfWeek: (date) => startOfWeek(date, { weekStartsOn: 0 }),
+  parse: (value: string, formatString: string) => parse(value, formatString, new Date()),
+  startOfWeek: (date: Date) => startOfWeek(date, { weekStartsOn: 0 }),
   getDay,
   locales,
 });
@@ -127,7 +127,7 @@ export default function Page() {
   const [filterDate, setFilterDate] = useState<string>(isoFromDate(today));
   const [rangeFrom, setRangeFrom] = useState<string>(isoFromDate(addDays(today, -3)));
   const [rangeTo, setRangeTo] = useState<string>(isoFromDate(addDays(today, 5)));
-  const [view, setView] = useState<Views>(Views.MONTH);
+  const [view, setView] = useState<View>(Views.MONTH);
   const [calendarEvents, setCalendarEvents] = useState<BigCalendarEvent[]>(sampleCases.map(toCalendarEvent));
   const [selectedEvent, setSelectedEvent] = useState<BigCalendarEvent | null>(calendarEvents[0] ?? null);
   const [selectedSlotLabel, setSelectedSlotLabel] = useState<string>("");
@@ -137,7 +137,7 @@ export default function Page() {
   const parsedRangeFrom = toDateSafe(rangeFrom);
   const parsedRangeTo = toDateSafe(rangeTo);
   const rangeValid = Boolean(parsedRangeFrom && parsedRangeTo && parsedRangeFrom <= parsedRangeTo);
-  const rangeDays = rangeValid ? differenceInCalendarDays(parsedRangeTo, parsedRangeFrom!) + 1 : 0;
+  const rangeDays = rangeValid ? differenceInCalendarDays(parsedRangeTo!, parsedRangeFrom!) + 1 : 0;
 
   const eventsInRange = useMemo(() => {
     if (!rangeValid || !parsedRangeFrom || !parsedRangeTo) return [];
@@ -213,7 +213,7 @@ export default function Page() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-purple-950 to-pink-900 text-slate-900">
+    <main className="relative min-h-screen overflow-hidden bg-white text-slate-900">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-0 top-10 h-[320px] w-[320px] rounded-full bg-white/20 blur-[140px]" />
         <div className="absolute right-10 top-40 h-[420px] w-[520px] rounded-full bg-pink-500/20 blur-[160px]" />
@@ -222,22 +222,17 @@ export default function Page() {
       <div className="relative mx-auto flex min-h-screen w-full max-w-[1320px] flex-col gap-6 px-6 py-10">
         <header className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.6em] text-white/60">Intraview</p>
-            <h1 className="text-3xl font-semibold text-white">จัดการสตรีมกล้อง · Big Calenda</h1>
-            <p className="text-sm text-white/70">อินเทอร์เฟซสว่างๆ คล้าย iOS สำหรับแพทย์ส่องกล้อง</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="rounded-full border border-white/40 bg-white/90 px-4 py-2 text-sm text-slate-900 shadow-lg shadow-white/50">admin@gmail.com</div>
-            <button className="rounded-full border border-white/40 px-4 py-2 text-xs uppercase tracking-[0.4em] text-white/80">ลงชื่อเข้าใช้</button>
-          </div>
+            <p className="text-xs uppercase tracking-[0.6em] text-black/60">Intraview</p>
+            <h1 className="text-3xl font-semibold text-black">Calenda</h1>
+           </div>
+           
         </header>
 
         <div className="flex flex-1 gap-6">
           <section className="w-[30%] min-w-[320px]">
             <div className="flex flex-col gap-4 rounded-[30px] border border-white/20 bg-white/80 px-6 py-6 shadow-[0_30px_80px_rgba(10,10,30,0.4)] backdrop-blur-3xl">
               <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-2xl font-semibold text-slate-900">EMR Intraview</h2>
+                <div> 
                   <p className="text-xs uppercase tracking-[0.4em] text-slate-500">แดชบอร์ด</p>
                 </div>
                 <div className="flex gap-2 text-[11px] uppercase">
@@ -247,7 +242,7 @@ export default function Page() {
                       onClick={() => setTimelineMode(mode === "Calendar" ? "Calendar" : "Gantt")}
                       className={`rounded-full px-3 py-1 text-slate-700 transition ${
                         timelineMode === (mode === "Calendar" ? "Calendar" : "Gantt")
-                          ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white"
+                          ? "bg-gradient-to-r from-pink-500 to-purple-500 text-black"
                           : "bg-white/70 hover:bg-white"
                       }`}
                     >
@@ -313,7 +308,7 @@ export default function Page() {
                   <h3 className="text-sm font-semibold text-slate-800">รายการวันที่ {filterDate ? formatThaiDisplay(filterDate) : "ไม่ระบุ"}</h3>
                   <button
                     onClick={() => addQuickTask()}
-                    className="rounded-full bg-pink-500 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-white shadow-lg"
+                    className="rounded-full bg-pink-500 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-black shadow-lg"
                   >
                     + Taskใหม่
                   </button>
@@ -394,7 +389,7 @@ export default function Page() {
                           onClick={() => setView(current)}
                           className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.3em] transition ${
                             view === current
-                              ? "bg-gradient-to-r from-pink-500 to-purple-500 text-white"
+                              ? "bg-gradient-to-r from-pink-500 to-purple-500 text-black"
                               : "border border-slate-200 bg-white text-slate-500"
                           }`}
                         >
@@ -430,17 +425,77 @@ export default function Page() {
                   />
                 </div>
 
-                <div className="rounded-[24px] border border-slate-200 bg-gradient-to-r from-purple-200/60 to-pink-200/50 p-4 text-[13px] text-slate-700 shadow-md">
-                  <p className="font-semibold text-slate-900">สถานะล่าสุด</p>
-                  <p className="text-sm text-slate-600">
-                    {statusMessage}
-                    {selectedEvent && (
-                      <>
-                        {" · "}
-                        <span className="font-semibold">{selectedEvent.patient}</span>
-                      </>
+                <div className="space-y-4">
+                  <div className="rounded-[24px] border border-slate-200 bg-white/80 p-4 shadow-xl">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs uppercase tracking-[0.4em] text-slate-400">ข้อมูลเคส</p>
+                      <button
+                        onClick={() => {
+                          if (selectedEvent) {
+                            setStatusMessage(`รีเซ็ตมุมมอง ${selectedEvent.patient}`);
+                          }
+                        }}
+                        className="text-[11px] text-slate-500 underline-offset-4 hover:text-pink-500"
+                      >
+                        ดูใหม่
+                      </button>
+                    </div>
+                    {selectedEvent ? (
+                      <div className="mt-3 grid gap-2 text-[13px] text-slate-700">
+                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                          <span>HN</span>
+                          <span>{selectedEvent.id}</span>
+                        </div>
+                        <p className="text-lg font-semibold text-slate-900">{selectedEvent.patient}</p>
+                        <p className="text-sm text-slate-500">
+                          {selectedEvent.camera} · {selectedEvent.procedure}
+                        </p>
+                        <div className="flex gap-3 text-[12px] text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <span className="inline-block h-2 w-2 rounded-full bg-slate-400" />
+                            {selectedEvent.doctor}
+                          </span>
+                          <span>
+                            {selectedEvent.start.toLocaleTimeString("th-TH", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </span>
+                        </div>
+                        <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">
+                          สถานะ
+                        </p>
+                        <div
+                          className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] ${
+                            selectedEvent.status === "Confirmed"
+                              ? "bg-emerald-100 text-emerald-600"
+                              : selectedEvent.status === "Monitoring"
+                              ? "bg-sky-100 text-sky-600"
+                              : selectedEvent.status === "Ready"
+                              ? "bg-amber-100 text-amber-600"
+                              : "bg-rose-100 text-rose-600"
+                          }`}
+                        >
+                          {selectedEvent.status}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-slate-500">คลิกเลือกเคสในปฏิทินเพื่อดูรายละเอียด</p>
                     )}
-                  </p>
+                  </div>
+
+                  <div className="rounded-[24px] border border-slate-200 bg-gradient-to-r from-purple-200/60 to-pink-200/50 p-4 text-[13px] text-slate-700 shadow-md">
+                    <p className="font-semibold text-slate-900">สถานะล่าสุด</p>
+                    <p className="text-sm text-slate-600">
+                      {statusMessage}
+                      {selectedEvent && (
+                        <>
+                          {" · "}
+                          <span className="font-semibold">{selectedEvent.patient}</span>
+                        </>
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
