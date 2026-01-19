@@ -1493,7 +1493,7 @@ export default function Page() {
                 <button
                   type="button"
                   onClick={handleSaveCase}
-                  disabled={fieldsDisabled || patientStatus === "loading"}
+                  disabled={fieldsDisabled}
                   className="rounded-full bg-gradient-to-r from-sky-400 to-emerald-400 px-6 py-2 text-[12px] font-semibold uppercase tracking-[0.2em] text-slate-900 shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {modalMode === "edit" ? "บันทึกข้อมูล" : "เพิ่มข้อมูล"}
