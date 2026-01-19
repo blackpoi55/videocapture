@@ -1640,6 +1640,69 @@ export default function Page() {
     });
   }, []);
 
+  const captureCountRef = useRef(0);
+  const captureSeqRef = useRef(0);
+  const captureAudioRef = useRef<HTMLAudioElement | null>(null);
+  const captureResolveRef = useRef<(() => void) | null>(null);
+
+  const getNumberSoundSequence = useCallback((value: number) => {
+    const normalized = ((value - 1) % 100) + 1;
+    if (normalized <= 19) return [String(normalized)];
+    if (normalized === 100) return ["100"];
+    const tens = Math.floor(normalized / 10) * 10;
+    const ones = normalized % 10;
+    const seq = [String(tens)];
+    if (ones !== 0) seq.push(String(ones));
+    return seq;
+  }, []);
+
+  const stopCaptureAudio = useCallback(() => {
+    if (captureResolveRef.current) {
+      captureResolveRef.current();
+      captureResolveRef.current = null;
+    }
+    if (captureAudioRef.current) {
+      captureAudioRef.current.pause();
+      captureAudioRef.current.currentTime = 0;
+    }
+  }, []);
+
+  const playCaptureSound = useCallback((name: string, seqId: number, rate = 1.9) => {
+    if (typeof window === "undefined") return Promise.resolve();
+    return new Promise<void>((resolve) => {
+      if (seqId !== captureSeqRef.current) {
+        resolve();
+        return;
+      }
+      const audio = new Audio(`/sound/${name}.mp3`);
+      captureAudioRef.current = audio;
+      captureResolveRef.current = resolve;
+      audio.volume = 1;
+      audio.playbackRate = rate;
+      const finish = () => {
+        if (captureResolveRef.current === resolve) captureResolveRef.current = null;
+        resolve();
+      };
+      audio.onended = finish;
+      audio.onerror = finish;
+      audio.play().catch(finish);
+    });
+  }, []);
+
+  const playCaptureCount = useCallback(
+    async (count: number) => {
+      const seqId = captureSeqRef.current + 1;
+      captureSeqRef.current = seqId;
+      stopCaptureAudio();
+      const sequence = ["capture", ...getNumberSoundSequence(count)];
+      for (const name of sequence) {
+        if (seqId !== captureSeqRef.current) return;
+        await playCaptureSound(name, seqId);
+      }
+    },
+    [getNumberSoundSequence, playCaptureSound, stopCaptureAudio]
+  );
+
   const runVideoCountdown = useCallback(async () => {
     for (let i = 3; i >= 1; i--) {
       setVideoCountdown(i);
@@ -2470,14 +2533,16 @@ export default function Page() {
 
       await refreshFiles();
       const fl = await listFiles(originalDir);
+      const imageCount = fl.filter((item) => isImageType(item.type, item.name)).length;
       const just = fl.find((x) => x.name === name) || fl[0] || null;
       setPreviewKeepScroll(just);
       alertOk("ถ่ายรูปสำเร็จ", name);
-      playSound("capture");
+      captureCountRef.current = imageCount;
+      void playCaptureCount(imageCount);
     } catch (e: any) {
       alertErr("ถ่ายรูปไม่สำเร็จ", e?.message || String(e));
     }
-  }, [originalDir, canSave, refreshFiles, playSound]);
+  }, [originalDir, canSave, refreshFiles, playCaptureCount]);
 
   const startVideo = useCallback(async () => {
     if (videoCountdown !== null) return;

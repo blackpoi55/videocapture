@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 
 const navItems = [
   { href: "/", label: "Capture" },
-//   { href: "/report", label: "Report" },
+  { href: "/calenda", label: "Calenda" },
+  { href: "/register", label: "Register" },
 ];
 
 export default function Nav() {
@@ -15,28 +16,39 @@ export default function Nav() {
   return (
     <nav className="app-nav" aria-label="Primary">
       <div className="nav-inner">
-        <div onClick={()=>router.push("/")} className="nav-brand cursor-pointer">
-          <div className="brand-mark">IV</div>
-          <div className="brand-text">
-            <div className="brand-title">Intraview</div>
-            <div className="brand-subtitle">Video Capture Suite</div>
+        <div className="nav-left">
+          <div onClick={() => router.push("/")} className="nav-brand cursor-pointer">
+            <div className="brand-mark">IV</div>
+            <div className="brand-text">
+              <div className="brand-title">Intraview</div>
+              <div className="brand-subtitle">Video Capture Suite</div>
+            </div>
+          </div>
+
+          <div className="nav-links">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`nav-link${isActive ? " active" : ""}`}
+                  aria-current={isActive ? "page" : undefined}
+                >
+                  {item.label}
+                </Link>
+              );
+            })}
           </div>
         </div>
 
-        <div className="nav-links">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`nav-link${isActive ? " active" : ""}`}
-                aria-current={isActive ? "page" : undefined}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
+        <div className="nav-actions">
+          <button type="button" className="nav-action ghost">
+            Login
+          </button>
+          <button type="button" className="nav-action">
+            Logout
+          </button>
         </div>
       </div>
 
@@ -50,13 +62,19 @@ export default function Nav() {
           backdrop-filter: blur(18px);
         }
         .nav-inner {
-          max-width: 1400px;
+          /* max-width: 1400px; */
           margin: 0 auto;
-          padding: 12px 20px;
+          padding: 12px 12px;
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 16px;
+        }
+        .nav-left {
+          display: flex;
+          align-items: center;
+          gap: 18px;
+          flex-wrap: wrap;
         }
         .nav-brand {
           display: flex;
@@ -116,6 +134,32 @@ export default function Nav() {
           border-color: rgba(20, 184, 166, 0.45);
           background: linear-gradient(135deg, rgba(20, 184, 166, 0.25), rgba(15, 118, 110, 0.45));
         }
+        .nav-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .nav-action {
+          padding: 8px 16px;
+          border-radius: 999px;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.2em;
+          text-transform: uppercase;
+          color: #e2e8f0;
+          background: linear-gradient(135deg, rgba(20, 184, 166, 0.35), rgba(15, 118, 110, 0.55));
+          border: 1px solid rgba(20, 184, 166, 0.4);
+          transition: all 160ms ease;
+        }
+        .nav-action.ghost {
+          background: transparent;
+          color: rgba(226, 232, 240, 0.75);
+          border-color: rgba(148, 163, 184, 0.35);
+        }
+        .nav-action:hover {
+          transform: translateY(-1px);
+          border-color: rgba(148, 163, 184, 0.45);
+        }
         @media (max-width: 720px) {
           .nav-inner {
             flex-direction: column;
@@ -123,6 +167,10 @@ export default function Nav() {
           }
           .nav-links {
             width: 100%;
+          }
+          .nav-actions {
+            width: 100%;
+            justify-content: flex-end;
           }
         }
         @media print {
