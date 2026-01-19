@@ -946,13 +946,11 @@ export default function Page() {
                     }}
                     formats={{
                       timeGutterFormat: "HH:mm",
-                      eventTimeRangeFormat: ({ start, end }, culture, l) =>
-                        `${l.format(start, "HH:mm", culture)} – ${l.format(end, "HH:mm", culture)}`,
-                      eventTimeRangeStartFormat: ({ start, end }, culture, l) =>
-                        `${l.format(start, "HH:mm", culture)} – ${l.format(end, "HH:mm", culture)}`,
+                      eventTimeRangeFormat: ({ start, end }) => `${format(start, "HH:mm")} – ${format(end, "HH:mm")}`,
+                      eventTimeRangeStartFormat: ({ start, end }) =>
+                        `${format(start, "HH:mm")} – ${format(end, "HH:mm")}`,
                       agendaTimeFormat: "HH:mm",
-                      agendaTimeRangeFormat: ({ start, end }, culture, l) =>
-                        `${l.format(start, "HH:mm", culture)} – ${l.format(end, "HH:mm", culture)}`,
+                      agendaTimeRangeFormat: ({ start, end }) => `${format(start, "HH:mm")} – ${format(end, "HH:mm")}`,
                     }}
                   />
                 </div>
