@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getSelectTypes, getvaluebyselecttypeid } from "@/action/api";
 
 const sections = [
   { id: "master", title: "Master", subtitle: "ข้อมูลหน่วยงานและแบรนด์" },
@@ -28,59 +29,521 @@ type CameraPreset = {
   values: CameraPresetValues;
 };
 
-const MasterSection = () => (
-  <div className="space-y-6">
-    <div>
-      <h2 className="text-lg font-semibold">Master</h2>
-      <p className="text-sm text-slate-500">ข้อมูลหลักที่ใช้แสดงบนรายงานและเอกสาร</p>
+const MasterSection = () => {
+  const [selectTypes, setSelectTypes] = useState<
+    Array<{ id: string; code: string; desc: string; isActive: boolean }>
+  >([]);
+  const [selectedTypeId, setSelectedTypeId] = useState("");
+  const [masterForm, setMasterForm] = useState({
+    code: "",
+    desc: "",
+    isActive: false,
+    id: "",
+  });
+  const [valueItems, setValueItems] = useState<
+    Array<{ id: string; code: string; desc: string; isActive: boolean }>
+  >([]);
+  const [valueForm, setValueForm] = useState({ code: "", desc: "", isActive: true });
+  const [editingValueId, setEditingValueId] = useState<string | null>(null);
+  const [valueModalOpen, setValueModalOpen] = useState(false);
+  const [valueModalMode, setValueModalMode] = useState<"add" | "edit" | "delete">("add");
+  const [activeValue, setActiveValue] = useState<{ id: string; code: string; desc: string; isActive: boolean } | null>(
+    null
+  );
+  const [typeForm, setTypeForm] = useState({ code: "", desc: "", isActive: true });
+  const [editingTypeId, setEditingTypeId] = useState<string | null>(null);
+  const [typeModalOpen, setTypeModalOpen] = useState(false);
+  const [typeModalMode, setTypeModalMode] = useState<"add" | "edit" | "delete">("add");
+  const [activeType, setActiveType] = useState<{ id: string; code: string; desc: string; isActive: boolean } | null>(
+    null
+  );
+  const [loading, setLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const openTypeModal = (mode: "add" | "edit" | "delete", item?: { id: string; code: string; desc: string; isActive: boolean }) => {
+    setTypeModalMode(mode);
+    setActiveType(item ?? null);
+    if (mode === "add") {
+      setEditingTypeId(null);
+      setTypeForm({ code: "", desc: "", isActive: true });
+    }
+    if (mode === "edit" && item) {
+      setEditingTypeId(item.id);
+      setTypeForm({ code: item.code, desc: item.desc, isActive: item.isActive });
+    }
+    setTypeModalOpen(true);
+  };
+
+  const openValueModal = (mode: "add" | "edit" | "delete", item?: { id: string; code: string; desc: string; isActive: boolean }) => {
+    setValueModalMode(mode);
+    setActiveValue(item ?? null);
+    if (mode === "add") {
+      setEditingValueId(null);
+      setValueForm({ code: "", desc: "", isActive: true });
+    }
+    if (mode === "edit" && item) {
+      setEditingValueId(item.id);
+      setValueForm({ code: item.code, desc: item.desc, isActive: item.isActive });
+    }
+    setValueModalOpen(true);
+  };
+
+  useEffect(() => {
+    let active = true;
+    const loadTypes = async () => {
+      setLoading(true);
+      setError(null);
+      const response = await getSelectTypes();
+      if (!active) return;
+      if ((response as { error?: unknown })?.error) {
+        setError((response as { message?: string })?.message || "โหลดรายการไม่สำเร็จ");
+        setLoading(false);
+        return;
+      }
+      const raw = (response as { data?: unknown })?.data ?? response;
+      const items = Array.isArray(raw) ? raw : [];
+      const mapped = items
+        .map((item) => {
+          const row = item as Record<string, unknown>;
+          const id = String(row.id ?? row.selecttypeid ?? "").trim();
+          const code = String(row.selecttypecode ?? row.code ?? "").trim();
+          const desc = String(row.selecttypedesc ?? row.desc ?? "").trim();
+          const isActive = Boolean(row.isactive ?? row.isActive);
+          return id && code ? { id, code, desc, isActive } : null;
+        })
+        .filter(Boolean) as Array<{ id: string; code: string; desc: string; isActive: boolean }>;
+      setSelectTypes(mapped);
+      if (mapped.length && !selectedTypeId) {
+        setSelectedTypeId(mapped[0].id);
+      }
+      setLoading(false);
+    };
+    loadTypes();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const selectedType = selectTypes.find((item) => item.id === selectedTypeId);
+    if (!selectedType) return;
+    setMasterForm({
+      id: selectedType.id,
+      code: selectedType.code,
+      desc: selectedType.desc,
+      isActive: selectedType.isActive,
+    });
+  }, [selectedTypeId, selectTypes]);
+
+  useEffect(() => {
+    let active = true;
+    const loadDetail = async () => {
+      if (!selectedTypeId) return;
+      setDetailLoading(true);
+      setError(null);
+      const response = await getvaluebyselecttypeid(selectedTypeId);
+      if (!active) return;
+      if ((response as { error?: unknown })?.error) {
+        setError((response as { message?: string })?.message || "โหลดข้อมูลไม่สำเร็จ");
+        setDetailLoading(false);
+        return;
+      }
+      const raw = (response as { data?: unknown })?.data ?? response;
+      const rows = Array.isArray(raw) ? raw : [];
+      const mappedValues = rows
+        .map((item) => {
+          const row = item as Record<string, unknown>;
+          const id = String(row.id ?? row.valueid ?? "").trim();
+          const code = String(row.valuecode ?? row.code ?? row.value ?? "").trim();
+          const desc = String(row.valuedesc ?? row.desc ?? row.label ?? "").trim();
+          const isActive = Boolean(row.isactive ?? row.isActive ?? true);
+          return id && (code || desc) ? { id, code, desc, isActive } : null;
+        })
+        .filter(Boolean) as Array<{ id: string; code: string; desc: string; isActive: boolean }>;
+      setValueItems(mappedValues);
+      setEditingValueId(null);
+      setValueForm({ code: "", desc: "", isActive: true });
+      setDetailLoading(false);
+    };
+    loadDetail();
+    return () => {
+      active = false;
+    };
+  }, [selectedTypeId]);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold">Master Data</h2>
+        <p className="text-sm text-slate-500">จัดการข้อมูล master สำหรับ dropdown ต่าง ๆ</p>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[450px_1fr]">
+        <aside className="rounded-2xl border border-slate-200 bg-white/90 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Types</div>
+              <div className="text-sm font-semibold text-slate-700">Select Type</div>
+            </div>
+            <div className="flex items-center gap-3">
+              {loading && <span className="text-xs text-slate-400">กำลังโหลด...</span>}
+              <button
+                type="button"
+                onClick={() => openTypeModal("add")}
+                className="rounded-full border border-teal-300/50 bg-teal-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-teal-700 hover:bg-teal-500/20"
+              >
+                เพิ่ม
+              </button>
+            </div>
+          </div>
+          {error && <p className="mt-2 text-xs text-rose-500">{error}</p>}
+          <div className="mt-4 max-h-[520px] space-y-2 overflow-auto pr-1">
+            {selectTypes.length === 0 && (
+              <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                ยังไม่มีรายการ
+              </div>
+            )}
+            {selectTypes.map((item) => (
+              <div
+                key={item.id}
+                className={`w-full rounded-xl border px-3 py-3 text-left text-xs transition ${
+                  selectedTypeId === item.id
+                    ? "border-teal-400/60 bg-teal-50/70 text-slate-900 shadow-[0_12px_24px_rgba(20,184,166,0.18)]"
+                    : "border-transparent bg-white text-slate-600 hover:border-white hover:bg-slate-50"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <button type="button" onClick={() => setSelectedTypeId(item.id)} className="text-left">
+                    <div className="font-semibold">{item.code}</div>
+                    <div className="text-[11px] text-slate-400">{item.desc}</div>
+                  </button>
+                  <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openTypeModal("edit", item)}
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600 hover:border-teal-300 hover:text-teal-600"
+                    >
+                      แก้ไข
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openTypeModal("delete", item)}
+                      className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-600 hover:border-rose-300"
+                    >
+                      ลบ
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-xs uppercase tracking-[0.2em] text-slate-400">รายการของประเภท</div>
+              <div className="text-sm font-semibold text-slate-700">{masterForm.code || "-"}</div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-xs text-slate-400">{valueItems.length} รายการ</div>
+              <button
+                type="button"
+                onClick={() => openValueModal("add")}
+                className="rounded-full border border-teal-300/50 bg-teal-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-teal-700 hover:bg-teal-500/20"
+              >
+                เพิ่ม
+              </button>
+            </div>
+          </div>
+          {detailLoading && <p className="mt-2 text-xs text-slate-400">กำลังโหลดข้อมูล...</p>}
+
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
+              <thead>
+                <tr className="text-left text-[11px] uppercase tracking-[0.24em] text-slate-400">
+                  <th className="border-b border-slate-200/70 px-4 py-3">Code</th>
+                  <th className="border-b border-slate-200/70 px-4 py-3">Description</th>
+                  <th className="border-b border-slate-200/70 px-4 py-3">Status</th>
+                  <th className="border-b border-slate-200/70 px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {valueItems.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-xs text-slate-400">
+                      ยังไม่มีรายการ
+                    </td>
+                  </tr>
+                )}
+
+                {valueItems.map((item) => (
+                  <tr key={item.id} className="transition hover:bg-slate-50/70">
+                    <td className="border-b border-slate-200/60 px-4 py-3 font-semibold text-slate-700">
+                      {item.code || "-"}
+                    </td>
+                    <td className="border-b border-slate-200/60 px-4 py-3 text-slate-600">{item.desc || "-"}</td>
+                    <td className="border-b border-slate-200/60 px-4 py-3">
+                      <span
+                        className={`rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] ${item.isActive
+                          ? "border-emerald-300/60 bg-emerald-50 text-emerald-600"
+                          : "border-slate-300/60 bg-white text-slate-500"
+                          }`}
+                      >
+                        {item.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </td>
+                    <td className="border-b border-slate-200/60 px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openValueModal("edit", item)}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600 hover:border-teal-300 hover:text-teal-600"
+                        >
+                          แก้ไข
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openValueModal("delete", item)}
+                          className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-600 hover:border-rose-300"
+                        >
+                          ลบ
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      {typeModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-start justify-center bg-slate-950/40 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-[560px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_40px_120px_rgba(15,23,42,0.35)]">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">Select Type</p>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  {typeModalMode === "add"
+                    ? "เพิ่มประเภท"
+                    : typeModalMode === "edit"
+                      ? "แก้ไขประเภท"
+                      : "ลบประเภท"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTypeModalOpen(false)}
+                className="rounded-full border border-teal-200 bg-teal-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
+              >
+                ปิด
+              </button>
+            </div>
+
+            <div className="space-y-4 p-6">
+              {typeModalMode === "delete" ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 text-sm text-rose-700">
+                  ต้องการลบประเภท <span className="font-semibold">{activeType?.code}</span> ใช่หรือไม่?
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                    Code
+                    <input
+                      type="text"
+                      value={typeForm.code}
+                      onChange={(event) => setTypeForm((prev) => ({ ...prev, code: event.target.value }))}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                    />
+                  </label>
+                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                    Description
+                    <input
+                      type="text"
+                      value={typeForm.desc}
+                      onChange={(event) => setTypeForm((prev) => ({ ...prev, desc: event.target.value }))}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                    />
+                  </label>
+                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                    Status
+                    <select
+                      value={typeForm.isActive ? "active" : "inactive"}
+                      onChange={(event) =>
+                        setTypeForm((prev) => ({ ...prev, isActive: event.target.value === "active" }))
+                      }
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setTypeModalOpen(false)}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-600 hover:border-slate-300"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (typeModalMode === "delete" && activeType) {
+                    setSelectTypes((prev) => prev.filter((item) => item.id !== activeType.id));
+                    if (selectedTypeId === activeType.id) {
+                      const next = selectTypes.find((item) => item.id !== activeType.id);
+                      setSelectedTypeId(next?.id ?? "");
+                    }
+                    setTypeModalOpen(false);
+                    return;
+                  }
+                  if (!typeForm.code.trim()) return;
+                  const next = {
+                    id: editingTypeId ?? `new-${Date.now()}`,
+                    code: typeForm.code.trim(),
+                    desc: typeForm.desc.trim(),
+                    isActive: typeForm.isActive,
+                  };
+                  setSelectTypes((prev) => {
+                    if (editingTypeId) {
+                      return prev.map((item) => (item.id === editingTypeId ? next : item));
+                    }
+                    return [next, ...prev];
+                  });
+                  setSelectedTypeId(next.id);
+                  setEditingTypeId(null);
+                  setTypeForm({ code: "", desc: "", isActive: true });
+                  setTypeModalOpen(false);
+                }}
+                className={`rounded-full px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white ${
+                  typeModalMode === "delete" ? "bg-rose-500 hover:bg-rose-600" : "bg-teal-500 hover:bg-teal-600"
+                }`}
+              >
+                {typeModalMode === "delete" ? "ลบ" : "บันทึก"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {valueModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-start justify-center bg-slate-950/40 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-[560px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_40px_120px_rgba(15,23,42,0.35)]">
+            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">Select Value</p>
+                <h3 className="text-xl font-semibold text-slate-900">
+                  {valueModalMode === "add"
+                    ? "เพิ่มรายการ"
+                    : valueModalMode === "edit"
+                      ? "แก้ไขรายการ"
+                      : "ลบรายการ"}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setValueModalOpen(false)}
+                className="rounded-full border border-teal-200 bg-teal-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
+              >
+                ปิด
+              </button>
+            </div>
+
+            <div className="space-y-4 p-6">
+              {valueModalMode === "delete" ? (
+                <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 text-sm text-rose-700">
+                  ต้องการลบรายการ <span className="font-semibold">{activeValue?.code}</span> ใช่หรือไม่?
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                    Code
+                    <input
+                      type="text"
+                      value={valueForm.code}
+                      onChange={(event) => setValueForm((prev) => ({ ...prev, code: event.target.value }))}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                    />
+                  </label>
+                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                    Description
+                    <input
+                      type="text"
+                      value={valueForm.desc}
+                      onChange={(event) => setValueForm((prev) => ({ ...prev, desc: event.target.value }))}
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                    />
+                  </label>
+                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                    Status
+                    <select
+                      value={valueForm.isActive ? "active" : "inactive"}
+                      onChange={(event) =>
+                        setValueForm((prev) => ({ ...prev, isActive: event.target.value === "active" }))
+                      }
+                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setValueModalOpen(false)}
+                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-600 hover:border-slate-300"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (valueModalMode === "delete" && activeValue) {
+                    setValueItems((prev) => prev.filter((item) => item.id !== activeValue.id));
+                    setValueModalOpen(false);
+                    return;
+                  }
+                  if (!valueForm.code.trim() && !valueForm.desc.trim()) return;
+                  const next = {
+                    id: editingValueId ?? `new-${Date.now()}`,
+                    code: valueForm.code.trim(),
+                    desc: valueForm.desc.trim(),
+                    isActive: valueForm.isActive,
+                  };
+                  setValueItems((prev) => {
+                    if (editingValueId) {
+                      return prev.map((item) => (item.id === editingValueId ? next : item));
+                    }
+                    return [next, ...prev];
+                  });
+                  setEditingValueId(null);
+                  setValueForm({ code: "", desc: "", isActive: true });
+                  setValueModalOpen(false);
+                }}
+                className={`rounded-full px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white ${
+                  valueModalMode === "delete" ? "bg-rose-500 hover:bg-rose-600" : "bg-teal-500 hover:bg-teal-600"
+                }`}
+              >
+                {valueModalMode === "delete" ? "ลบ" : "บันทึก"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-
-    <div className="grid gap-4 md:grid-cols-2">
-      <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
-        ชื่อหน่วยงาน
-        <input
-          type="text"
-          placeholder="Intraview Medical Center"
-          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
-        />
-      </label>
-      <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
-        สาขา
-        <input
-          type="text"
-          placeholder="Bangkok Clinic"
-          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
-        />
-      </label>
-      <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
-        เบอร์ติดต่อ
-        <input
-          type="text"
-          placeholder="02-123-4567"
-          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
-        />
-      </label>
-      <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
-        โลโก้ (URL)
-        <input
-          type="text"
-          placeholder="https://..."
-          className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
-        />
-      </label>
-    </div>
-
-    <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
-      ข้อความท้ายรายงาน
-      <textarea
-        rows={3}
-        placeholder="หมายเหตุสำหรับรายงานที่ส่งให้คนไข้..."
-        className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
-      />
-    </label>
-  </div>
-);
-
+  )
+}
 const StorageSection = () => (
   <div className="space-y-6">
     <div>
@@ -261,16 +724,16 @@ const CameraSection = ({ active }: { active: boolean }) => {
           audio: false,
         };
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      const track = stream.getVideoTracks()[0];
-      const actualId = track?.getSettings().deviceId;
-      if (actualId && actualId !== deviceId) setDeviceId(actualId);
-      setCameraOn(true);
-      await listDevices();
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        const track = stream.getVideoTracks()[0];
+        const actualId = track?.getSettings().deviceId;
+        if (actualId && actualId !== deviceId) setDeviceId(actualId);
+        setCameraOn(true);
+        await listDevices();
       } catch (err) {
         console.error(err);
         setCameraError("ไม่สามารถเปิดกล้องได้");
@@ -320,11 +783,10 @@ const CameraSection = ({ active }: { active: boolean }) => {
                 key={preset.id}
                 type="button"
                 onClick={() => setActivePresetId(preset.id)}
-                className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${
-                  preset.id === activePresetId
-                    ? "border-teal-400/60 bg-white text-slate-900 shadow-[0_12px_24px_rgba(20,184,166,0.18)]"
-                    : "border-transparent bg-transparent text-slate-600 hover:border-white hover:bg-white/70"
-                }`}
+                className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${preset.id === activePresetId
+                  ? "border-teal-400/60 bg-white text-slate-900 shadow-[0_12px_24px_rgba(20,184,166,0.18)]"
+                  : "border-transparent bg-transparent text-slate-600 hover:border-white hover:bg-white/70"
+                  }`}
               >
                 {preset.name}
               </button>
@@ -511,12 +973,7 @@ export default function SettingPage() {
               <h1 className="text-3xl font-semibold">ตั้งค่า</h1>
               <p className="text-sm text-slate-500">จัดการค่าพื้นฐาน ระบบ และพรีเซ็ตเริ่มต้น</p>
             </div>
-            <button
-              type="button"
-              className="rounded-full border border-teal-300/50 bg-teal-500/10 px-5 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-teal-700 hover:bg-teal-500/20"
-            >
-              บันทึกทั้งหมด
-            </button>
+             
           </div>
         </header>
 
@@ -530,11 +987,10 @@ export default function SettingPage() {
                     key={item.id}
                     type="button"
                     onClick={() => setActive(item.id)}
-                    className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
-                      isActive
-                        ? "border-teal-400/50 bg-white text-slate-900 shadow-[0_14px_30px_rgba(20,184,166,0.18)]"
-                        : "border-transparent bg-transparent text-slate-600 hover:border-white hover:bg-white/70"
-                    }`}
+                    className={`w-full rounded-2xl border px-4 py-3 text-left transition ${isActive
+                      ? "border-teal-400/50 bg-white text-slate-900 shadow-[0_14px_30px_rgba(20,184,166,0.18)]"
+                      : "border-transparent bg-transparent text-slate-600 hover:border-white hover:bg-white/70"
+                      }`}
                     aria-pressed={isActive}
                   >
                     <div className="text-sm font-semibold">{item.title}</div>

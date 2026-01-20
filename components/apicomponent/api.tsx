@@ -16,7 +16,7 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 export const GET = <T = unknown>(URL: string, config: AxiosRequestConfig = {}): Promise<T | ApiError> => {
-  const Token = localStorage.getItem("mbcaccessToken");
+  const Token = localStorage.getItem("intraview_token");
   const headers = {
     Authorization: Token ? `Bearer ${Token}` : "",
     "Content-Type": "application/json",
@@ -34,7 +34,7 @@ export const GET = <T = unknown>(URL: string, config: AxiosRequestConfig = {}): 
 };
 
 export const POST = <T = unknown, D = unknown>(URL: string, data: D): Promise<T | ApiError> => {
-  const Token = localStorage.getItem("mbcaccessToken");
+  const Token = localStorage.getItem("intraview_token");
   console.log("first", `${API}${URL}`);
   return axios({
     method: 'POST',
@@ -56,7 +56,7 @@ export const POST = <T = unknown, D = unknown>(URL: string, data: D): Promise<T 
 };
 
 export const PUT = <T = unknown, D = unknown>(URL: string, data: D): Promise<T | ApiError> => {
-  const Token = localStorage.getItem("Token");
+  const Token = localStorage.getItem("intraview_token");
   return axios({
     method: 'PUT',
     url: `${API}${URL}`,
@@ -76,7 +76,7 @@ export const PUT = <T = unknown, D = unknown>(URL: string, data: D): Promise<T |
 };
 
 export const DELETE = <T = unknown>(URL: string): Promise<T | ApiError> => {
-  const Token = localStorage.getItem("Token");
+  const Token = localStorage.getItem("intraview_token");
   return axios({
     method: 'DELETE',
     url: `${API}${URL}`,
@@ -94,3 +94,20 @@ export const DELETE = <T = unknown>(URL: string): Promise<T | ApiError> => {
     return { error: err, message: getErrorMessage(err) };
   });
 };
+
+export const POST_Login = async (URL: string, data: any) => {
+  return axios({
+    method: 'POST',
+    url: `${API}${URL}`,
+    data: data,
+    headers: {
+      'Content-Type': 'application/json'
+    },
+  }).then((result) => {
+    return result.data
+
+  }).catch(err => {
+    console.log(err);
+    return { error: err, message: err?.response?.data?.message || "" }
+  });
+}

@@ -2,6 +2,7 @@
  
 import { useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
+import { getbyHN } from "@/action/api";
 
 type PatientForm = {
   hn: string;
@@ -25,24 +26,6 @@ type PatientForm = {
 };
 
 type HnStatus = "idle" | "loading" | "found" | "notfound";
- 
-
-const mockRecord: PatientForm = {
-  hn: "12345678",
-  an: "AN-5099",
-  prefix: "นาย",
-  firstName: "ปณต",
-  lastName: "วีระสุข",
-  dobDay: "09",
-  dobMonth: "10",
-  dobYear: "2539",
-  age: "29",
-  nationality: "ไทย",
-  sex: "ชาย",
-  phone: "089-555-1234",
-  patientType: { op: true, ward: false, refer: false },
-  note: "ผู้ป่วยติดตามตรวจ Intraview ทุก 6 เดือน",
-};
 
 const emptyForm: PatientForm = {
   hn: "",
@@ -122,20 +105,9 @@ export default function RegisterPage() {
       timerProgressBar: true,
     });
 
-  const mockFetchByHn = async (hn: string) => {
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    if (hn === "12345678") return mockRecord;
-    return null;
-  };
-
   const handleHnBlur = async (rawHn?: string) => {
-    const hn = (rawHn ?? form.hn).replace(/\D/g, "");
+    const hn = (rawHn ?? form.hn).trim();
     if (!hn) return;
-    if (hn.length !== 8) {
-      toast("error", "HN ต้องมี 8 หลัก");
-      setHnStatus("idle");
-      return;
-    }
     if (lastFetchedHnRef.current === hn && hnStatus !== "idle") return;
 
     setHnStatus("loading");
@@ -146,28 +118,56 @@ export default function RegisterPage() {
       didOpen: () => Swal.showLoading(),
     });
 
-    const result = await mockFetchByHn(hn);
+    const response = await getbyHN(hn);
     Swal.close();
     lastFetchedHnRef.current = hn;
 
-    if (result) {
-      setForm(result);
-      setMode("update");
-      setHnStatus("found");
-      toast("success", "พบข้อมูลเดิมแล้ว", "สามารถแก้ไขและบันทึกได้เลย");
+    if (!(response as { error?: unknown })?.error) {
+      const data = (response as { data?: unknown })?.data ?? response;
+      const row = data as Record<string, unknown> | null;
+      if (row) {
+        const dobRaw = String(row.dob ?? row.birthdate ?? "").trim();
+        const dobDate = dobRaw ? new Date(dobRaw) : null;
+        const dobDay = dobDate ? String(dobDate.getDate()).padStart(2, "0") : "";
+        const dobMonth = dobDate ? String(dobDate.getMonth() + 1).padStart(2, "0") : "";
+        const dobYear = dobDate ? String(dobDate.getFullYear() + 543) : "";
+        setForm({
+          hn: String(row.hn ?? row.HN ?? hn),
+          an: String(row.an ?? row.AN ?? ""),
+          prefix: String(row.prefix ?? row.title ?? ""),
+          firstName: String(row.firstName ?? row.firstname ?? ""),
+          lastName: String(row.lastName ?? row.lastname ?? ""),
+          dobDay,
+          dobMonth,
+          dobYear,
+          age: String(row.age ?? ""),
+          nationality: String(row.nationality ?? ""),
+          sex: String(row.sex ?? row.gender ?? ""),
+          phone: String(row.phone ?? row.tel ?? ""),
+          patientType: { ...emptyForm.patientType },
+          note: "",
+        });
+        setMode("update");
+        setHnStatus("found");
+        toast("success", "พบข้อมูลเดิมแล้ว", "สามารถแก้ไขและบันทึกได้เลย");
+        return;
+      }
+      setMode("create");
+      setHnStatus("notfound");
+      setForm({ ...emptyForm, hn });
+      toast("info", "ไม่พบข้อมูลเดิม", "กรอกข้อมูลเพิ่มเติมเพื่อเพิ่มผู้ป่วยใหม่");
       return;
     }
-
-    setMode("create");
     setHnStatus("notfound");
+    setMode("create");
     setForm({ ...emptyForm, hn });
-    toast("info", "ไม่พบข้อมูลเดิม", "กรอกข้อมูลเพิ่มเติมเพื่อเพิ่มผู้ป่วยใหม่");
+    toast("error", "ค้นหา HN ไม่สำเร็จ", (response as { message?: string })?.message || "โปรดลองใหม่อีกครั้ง");
   };
 
   const handleSave = async () => {
-    const hn = form.hn.replace(/\D/g, "");
-    if (hn.length !== 8) {
-      toast("error", "กรุณากรอก HN ให้ครบ 8 หลัก");
+    const hn = form.hn.trim();
+    if (!hn) {
+      toast("error", "กรุณากรอก HN");
       return;
     }
     if (!form.firstName || !form.lastName) {
@@ -182,7 +182,6 @@ export default function RegisterPage() {
       didOpen: () => Swal.showLoading(),
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 900));
     Swal.close();
     toast("success", mode === "update" ? "บันทึกข้อมูลสำเร็จ" : "เพิ่มข้อมูลสำเร็จ");
   };
@@ -218,11 +217,7 @@ export default function RegisterPage() {
               <input
                 value={form.hn}
                 onChange={(e) => {
-                  const next = e.target.value.replace(/\D/g, "");
-                  updateField("hn", next);
-                  if (next.length === 8) {
-                    handleHnBlur(next);
-                  }
+                  updateField("hn", e.target.value);
                 }}
                 onBlur={(e) => handleHnBlur(e.currentTarget.value)}
                 onKeyDown={(e) => {
@@ -231,8 +226,7 @@ export default function RegisterPage() {
                     handleHnBlur(e.currentTarget.value);
                   }
                 }}
-                placeholder="เช่น 12345678"
-                maxLength={8}
+                placeholder="เช่น 1-65"
                 className={fieldClass}
               />
               <span className="text-xs text-slate-500/70">กรอก 8 หลัก แล้วระบบจะค้นหาอัตโนมัติ</span>

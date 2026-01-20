@@ -8,15 +8,18 @@ import {
   addMonths,
   differenceInCalendarDays,
   endOfDay,
+  endOfMonth,
   format,
   getDay,
   parse,
   startOfDay,
+  startOfMonth,
   startOfWeek,
 } from "date-fns";
 import { th } from "date-fns/locale/th";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import Swal from "sweetalert2";
+import { getbyHN, postCalendagetdata } from "@/action/api";
 
 type CaseItem = {
   id: string;
@@ -28,6 +31,7 @@ type CaseItem = {
   date: string;
   procedure: string;
   status: "Confirmed" | "Monitoring" | "Ready" | "Review";
+  meta?: CaseMeta;
 };
 
 type BigCalendarEvent = {
@@ -125,6 +129,153 @@ const toLocalDate = (value: string) => {
   return parsed;
 };
 
+const normalizeTime = (value: unknown, fallback: string) => {
+  if (!value) return fallback;
+  if (typeof value === "number") {
+    const hours = Math.floor(value);
+    const mins = Math.round((value - hours) * 60);
+    return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+  }
+  const raw = String(value).trim();
+  if (!raw) return fallback;
+  if (raw.includes("T")) {
+    const parts = raw.split("T");
+    return normalizeTime(parts[1], fallback);
+  }
+  const [hh, mm] = raw.split(":");
+  if (!hh || !mm) return fallback;
+  return `${hh.padStart(2, "0")}:${mm.padStart(2, "0")}`;
+};
+
+const ensureStatus = (value: unknown): CaseItem["status"] => {
+  if (typeof value === "number") {
+    if (value === 1) return "Confirmed";
+    if (value === 2) return "Ready";
+    if (value === 3) return "Review";
+    return "Monitoring";
+  }
+  const raw = String(value || "").toLowerCase();
+  if (raw.includes("confirm")) return "Confirmed";
+  if (raw.includes("ready")) return "Ready";
+  if (raw.includes("review")) return "Review";
+  if (raw.includes("monitor")) return "Monitoring";
+  return "Monitoring";
+};
+
+const toCaseItems = (payload: unknown): CaseItem[] => {
+  const items = Array.isArray(payload)
+    ? payload
+    : Array.isArray((payload as { data?: unknown })?.data)
+      ? (payload as { data: unknown[] }).data
+      : Array.isArray((payload as { result?: unknown })?.result)
+        ? (payload as { result: unknown[] }).result
+        : [];
+
+  return items.map((raw, index) => {
+    const row = raw as Record<string, unknown>;
+    const hn = String(row.hn ?? row.HN ?? row.patient_hn ?? row.patientHn ?? "").trim();
+    const firstName = String(row.firstName ?? row.firstname ?? row.patientFirstName ?? "").trim();
+    const lastName = String(row.lastName ?? row.lastname ?? row.patientLastName ?? "").trim();
+    const prefix = String(row.prefix ?? row.title ?? "").trim();
+    const patient =
+      String(row.patient ?? row.patientName ?? row.fullname ?? row.name ?? "").trim() ||
+      `${prefix ? `${prefix} ` : ""}${firstName} ${lastName}`.trim();
+    const dateRaw = String(
+      row.appointmentdate ?? row.appointmentDate ?? row.casedate ?? row.date ?? row.operationDate ?? row.createdAt ?? ""
+    ).trim();
+    const date = dateRaw ? isoFromDate(dateRaw) : isoFromDate(new Date());
+    const time = normalizeTime(
+      row.casetimefrom ??
+      row.caseTimeFrom ??
+      row.time ??
+      row.operationTime ??
+      row.appointmenttime ??
+      row.appointmentTime ??
+      row.timeFrom ??
+      row.timefrom,
+      "09:00"
+    );
+    const doctor = String(row.doctor ?? row.physician ?? row.staff ?? row.doctorName ?? "").trim();
+    const camera = String(row.camera ?? row.room ?? row.cameraName ?? "").trim();
+    const procedure = String(row.procedure ?? row.mainProcedure ?? row.caseType ?? row.service ?? "").trim();
+    const status = ensureStatus(row.casestatusid ?? row.caseStatusId ?? row.status ?? row.caseStatus ?? row.state);
+    const id = String(row.id ?? row.caseId ?? row.caseNo ?? row.uid ?? `case-${date}-${index}`).trim();
+    const registerDate = String(row.registerdate ?? row.registerDate ?? "").trim();
+    const registerTime = String(row.registertime ?? row.registerTime ?? "").trim();
+    const appointmentDate = String(row.appointmentdate ?? row.appointmentDate ?? "").trim();
+    const appointmentTime = String(row.appointmenttime ?? row.appointmentTime ?? "").trim();
+    const caseDate = String(row.casedate ?? row.caseDate ?? "").trim();
+    const caseTimeFrom = String(row.casetimefrom ?? row.caseTimeFrom ?? "").trim();
+    const caseTimeTo = String(row.casetimeto ?? row.caseTimeTo ?? "").trim();
+    const caseNo = String(row.casenumber ?? row.caseNumber ?? row.caseNo ?? "").trim();
+    const an = String(row.an ?? "").trim();
+    const patientMeta: PatientInfo = {
+      hn,
+      an,
+      prefix,
+      firstName,
+      lastName,
+      dob: "",
+      age: String(row.age ?? "").trim(),
+      nationality: "",
+      sex: "",
+      phone: "",
+    };
+    const meta: CaseMeta = {
+      hn,
+      patient: patientMeta.hn || patientMeta.an || patientMeta.firstName ? patientMeta : null,
+      registration: {
+        registerDate: registerDate ? isoFromDate(registerDate) : date,
+        registerTime: normalizeTime(registerTime, "09:00"),
+        appointmentDate: appointmentDate ? isoFromDate(appointmentDate) : date,
+        appointmentTime: normalizeTime(appointmentTime, "09:30"),
+        operationDate: caseDate ? isoFromDate(caseDate) : date,
+        timeFrom: normalizeTime(caseTimeFrom, time),
+        timeTo: normalizeTime(caseTimeTo, time),
+        caseNo,
+      },
+      procedure: {
+        ...procedureDefaults,
+        room: String(row.procedureroomid ?? row.procedureRoomId ?? camera ?? "").trim(),
+        procedure: String(row.mainprocedureid ?? row.mainProcedureId ?? procedure ?? "").trim(),
+        mainProcedure: String(row.mainprocedureid ?? row.mainProcedureId ?? procedure ?? "").trim(),
+        financial: String(row.financialid ?? row.financialId ?? "").trim(),
+        indication: String(row.indicationid ?? row.indicationId ?? "").trim(),
+        rapid: String(row.rapidtestresultid ?? row.rapidTestResultId ?? "").trim(),
+        histopath: String(row.histopathologyid ?? row.histopathologyId ?? "").trim(),
+        sub: String(row.subprocedureid ?? row.subProcedureId ?? "").trim(),
+        caseType: String(row.patienttypeopdid ?? row.patientTypeOpdId ?? "").trim(),
+        anesthe: String(row.anesthesiamethodid ?? row.anesthesiaMethodId ?? "").trim(),
+        anestheAssist: String(row.anesthetistid ?? row.anesthetistId ?? "").trim(),
+      },
+      physician: {
+        ...physicianDefaults,
+        physician: String(row.physicians1id ?? row.physicians1Id ?? doctor ?? "").trim(),
+        nurse1: String(row.nurse1id ?? row.nurse1Id ?? "").trim(),
+        nurse2: String(row.nurse2id ?? row.nurse2Id ?? "").trim(),
+        staff1: String(row.staff1id ?? row.staff1Id ?? "").trim(),
+        staff2: String(row.staff2id ?? row.staff2Id ?? "").trim(),
+        preDiagnosis: String(row.prediagnosisdx1id ?? row.preDiagnosisDx1Id ?? "").trim(),
+        dx1: String(row.prediagnosisdx1id ?? row.preDiagnosisDx1Id ?? "").trim(),
+        dx2: String(row.prediagnosisdx2id ?? row.preDiagnosisDx2Id ?? "").trim(),
+      },
+    };
+
+    return {
+      id,
+      hn,
+      patient: patient || hn || `Case ${index + 1}`,
+      doctor,
+      camera,
+      time,
+      date,
+      procedure: procedure || "-",
+      status,
+      meta,
+    };
+  });
+};
+
 const isoFromDate = (date: Date | string) => {
   const target = typeof date === "string" ? toLocalDate(date) : date;
   return format(target, "yyyy-MM-dd");
@@ -136,275 +287,56 @@ const toDateSafe = (value: string | null | undefined) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const sampleCases: CaseItem[] = [
-  {
-    id: "IN-101",
-    hn: "12345678",
-    patient: "ด.ญ. พิมพ์ชีวา บัวแก้ว",
-    doctor: "นพ. อภิชาติ",
-    camera: "Cam 01 · OR 3",
-    time: "08:30",
-    date: isoFromDate(new Date()),
-    procedure: "ตรวจกล้องภายใน",
-    status: "Confirmed",
-  },
-  {
-    id: "IN-102",
-    hn: "22334455",
-    patient: "นาย ยุทธนา พรมเลิศ",
-    doctor: "นพ. ไตรภพ",
-    camera: "Cam 02 · NICU",
-    time: "10:15",
-    date: isoFromDate(addDays(new Date(), 1)),
-    procedure: "ส่องกล้องหลอดเลือด",
-    status: "Monitoring",
-  },
-  {
-    id: "IN-103",
-    hn: "33445566",
-    patient: "น.ส. รัตนา รุ่งเรือง",
-    doctor: "นพ. กานต์",
-    camera: "Cam 03 · OR 1",
-    time: "14:15",
-    date: isoFromDate(addDays(new Date(), 2)),
-    procedure: "ตรวจกล้องกระดูก",
-    status: "Ready",
-  },
-  {
-    id: "IN-104",
-    hn: "44556677",
-    patient: "ด.ช. ปุณณวิชญ์ สำราญ",
-    doctor: "นพ. เชิดชัย",
-    camera: "Cam 04 · Ward",
-    time: "13:20",
-    date: isoFromDate(addDays(new Date(), 4)),
-    procedure: "ตรวจกล้องช่องท้อง",
-    status: "Review",
-  },
-  {
-    id: "IN-105",
-    hn: "55667788",
-    patient: "น.ส. จิราภรณ์ เทพทา",
-    doctor: "นพ. หรรษา",
-    camera: "Cam 05 · OR 2",
-    time: "11:10",
-    date: isoFromDate(new Date()),
-    procedure: "ส่องกล้องระบบทางเดินอาหาร",
-    status: "Monitoring",
-  },
-  {
-    id: "IN-106",
-    hn: "66778899",
-    patient: "นาย ปณต วีระสุข",
-    doctor: "นพ. วรินทร์",
-    camera: "Cam 03 · OR 1",
-    time: "16:20",
-    date: isoFromDate(new Date()),
-    procedure: "ตรวจกล้องไต",
-    status: "Confirmed",
-  },
-  {
-    id: "IN-107",
-    hn: "77889900",
-    patient: "น.ส. สิตา โชติชัย",
-    doctor: "นพ. อภิชาติ",
-    camera: "Cam 02 · OR 2",
-    time: "09:10",
-    date: isoFromDate(new Date(new Date().getFullYear(), new Date().getMonth(), 19)),
-    procedure: "ส่องกล้องหลอดเลือด",
-    status: "Monitoring",
-  },
-  {
-    id: "IN-108",
-    hn: "88990011",
-    patient: "นาย ธนกร ใจดี",
-    doctor: "นพ. กานต์",
-    camera: "Cam 01 · OR 3",
-    time: "10:00",
-    date: isoFromDate(new Date(new Date().getFullYear(), new Date().getMonth(), 19)),
-    procedure: "ตรวจกล้องภายใน",
-    status: "Ready",
-  },
-  {
-    id: "IN-109",
-    hn: "99001122",
-    patient: "น.ส. จิตรา ศรีสุข",
-    doctor: "นพ. ไตรภพ",
-    camera: "Cam 03 · OR 1",
-    time: "11:40",
-    date: isoFromDate(new Date(new Date().getFullYear(), new Date().getMonth(), 19)),
-    procedure: "ตรวจกล้องกระดูก",
-    status: "Confirmed",
-  },
-  {
-    id: "IN-110",
-    hn: "10111223",
-    patient: "ด.ญ. นลิน วัฒน์ชัย",
-    doctor: "นพ. เชิดชัย",
-    camera: "Cam 04 · Ward",
-    time: "13:15",
-    date: isoFromDate(new Date(new Date().getFullYear(), new Date().getMonth(), 19)),
-    procedure: "ตรวจกล้องช่องท้อง",
-    status: "Review",
-  },
-  {
-    id: "IN-111",
-    hn: "12131425",
-    patient: "นาย วรเดช สีทอง",
-    doctor: "นพ. วรินทร์",
-    camera: "Cam 05 · OR 2",
-    time: "15:30",
-    date: isoFromDate(new Date(new Date().getFullYear(), new Date().getMonth(), 19)),
-    procedure: "ส่องกล้องระบบทางเดินอาหาร",
-    status: "Monitoring",
-  },
-];
-
-const mockPatientByHn: Record<string, PatientInfo> = {
-  "12345678": {
-    hn: "12345678",
-    an: "AN-5099",
-    prefix: "นาย",
-    firstName: "ปณต",
-    lastName: "วีระสุข",
-    dob: "2539-10-09",
-    age: "29",
-    nationality: "ไทย",
-    sex: "ชาย",
-    phone: "089-555-1234",
-  },
-  "22334455": {
-    hn: "22334455",
-    an: "AN-1832",
-    prefix: "นาย",
-    firstName: "ยุทธนา",
-    lastName: "พรมเลิศ",
-    dob: "2538-04-21",
-    age: "30",
-    nationality: "ไทย",
-    sex: "ชาย",
-    phone: "081-222-3344",
-  },
-  "33445566": {
-    hn: "33445566",
-    an: "AN-2210",
-    prefix: "นางสาว",
-    firstName: "รัตนา",
-    lastName: "รุ่งเรือง",
-    dob: "2542-11-02",
-    age: "26",
-    nationality: "ไทย",
-    sex: "หญิง",
-    phone: "084-919-2020",
-  },
-  "44556677": {
-    hn: "44556677",
-    an: "AN-2771",
-    prefix: "ด.ช.",
-    firstName: "ปุณณวิชญ์",
-    lastName: "สำราญ",
-    dob: "2558-06-15",
-    age: "10",
-    nationality: "ไทย",
-    sex: "ชาย",
-    phone: "082-444-5566",
-  },
-  "55667788": {
-    hn: "55667788",
-    an: "AN-9013",
-    prefix: "นางสาว",
-    firstName: "จิราภรณ์",
-    lastName: "เทพทา",
-    dob: "2537-12-30",
-    age: "31",
-    nationality: "ไทย",
-    sex: "หญิง",
-    phone: "086-777-8811",
-  },
-  "66778899": {
-    hn: "66778899",
-    an: "AN-7722",
-    prefix: "นาย",
-    firstName: "ปณต",
-    lastName: "วีระสุข",
-    dob: "2536-08-09",
-    age: "32",
-    nationality: "ไทย",
-    sex: "ชาย",
-    phone: "089-111-2233",
-  },
-  "77889900": {
-    hn: "77889900",
-    an: "AN-4421",
-    prefix: "นางสาว",
-    firstName: "สิตา",
-    lastName: "โชติชัย",
-    dob: "2540-02-14",
-    age: "28",
-    nationality: "ไทย",
-    sex: "หญิง",
-    phone: "086-222-1100",
-  },
-  "88990011": {
-    hn: "88990011",
-    an: "AN-5579",
-    prefix: "นาย",
-    firstName: "ธนกร",
-    lastName: "ใจดี",
-    dob: "2533-09-03",
-    age: "35",
-    nationality: "ไทย",
-    sex: "ชาย",
-    phone: "089-304-1101",
-  },
-  "99001122": {
-    hn: "99001122",
-    an: "AN-6108",
-    prefix: "นางสาว",
-    firstName: "จิตรา",
-    lastName: "ศรีสุข",
-    dob: "2536-12-28",
-    age: "32",
-    nationality: "ไทย",
-    sex: "หญิง",
-    phone: "082-111-0022",
-  },
-  "10111223": {
-    hn: "10111223",
-    an: "AN-7190",
-    prefix: "ด.ญ.",
-    firstName: "นลิน",
-    lastName: "วัฒน์ชัย",
-    dob: "2556-07-09",
-    age: "12",
-    nationality: "ไทย",
-    sex: "หญิง",
-    phone: "084-990-1122",
-  },
-  "12131425": {
-    hn: "12131425",
-    an: "AN-8014",
-    prefix: "นาย",
-    firstName: "วรเดช",
-    lastName: "สีทอง",
-    dob: "2538-05-17",
-    age: "30",
-    nationality: "ไทย",
-    sex: "ชาย",
-    phone: "087-121-3425",
-  },
+const hasPatientDetails = (patient: PatientInfo | null) => {
+  if (!patient) return false;
+  return Boolean(
+    patient.firstName ||
+    patient.lastName ||
+    patient.an ||
+    patient.phone ||
+    patient.nationality ||
+    patient.sex ||
+    patient.age ||
+    patient.dob
+  );
 };
 
-const registrationDefaults = (date: string): RegistrationInfo => ({
-  registerDate: date,
-  registerTime: "09:00",
-  appointmentDate: date,
-  appointmentTime: "09:30",
-  operationDate: date,
-  timeFrom: "09:00",
-  timeTo: "10:00",
-  caseNo: "",
-});
+const buildPatientFromResponse = (hn: string, response: unknown): PatientInfo | null => {
+  const data = (response as { data?: unknown })?.data ?? response;
+  const row = data as Record<string, unknown> | null;
+  if (!row) return null;
+  const patient: PatientInfo = {
+    hn: String(row.hn ?? row.HN ?? hn),
+    an: String(row.an ?? row.AN ?? ""),
+    prefix: String(row.prefix ?? row.title ?? ""),
+    firstName: String(row.firstName ?? row.firstname ?? ""),
+    lastName: String(row.lastName ?? row.lastname ?? ""),
+    dob: String(row.dob ?? row.birthdate ?? ""),
+    age: String(row.age ?? ""),
+    nationality: String(row.nationality ?? ""),
+    sex: String(row.sex ?? row.gender ?? ""),
+    phone: String(row.phone ?? row.tel ?? ""),
+  };
+  if (patient.hn || patient.an || patient.firstName || patient.lastName) return patient;
+  return null;
+};
+
+
+const registrationDefaults = (date: string, time?: string): RegistrationInfo => {
+  const hasTime = Boolean(time);
+  const baseTime = time ?? "09:00";
+  const endTime = format(addHours(new Date(`${date}T${baseTime}:00`), 1), "HH:mm");
+  return {
+    registerDate: date,
+    registerTime: "09:00",
+    appointmentDate: date,
+    appointmentTime: hasTime ? baseTime : "09:30",
+    operationDate: date,
+    timeFrom: hasTime ? baseTime : "09:00",
+    timeTo: hasTime ? endTime : "10:00",
+    caseNo: "",
+  };
+};
 
 const procedureDefaults: ProcedureInfo = {
   room: "",
@@ -431,10 +363,10 @@ const physicianDefaults: PhysicianInfo = {
   dx2: "",
 };
 
-const buildEmptyForm = (date: string): CaseForm => ({
+const buildEmptyForm = (date: string, time?: string): CaseForm => ({
   hn: "",
   patient: null,
-  registration: registrationDefaults(date),
+  registration: registrationDefaults(date, time),
   procedure: { ...procedureDefaults },
   physician: { ...physicianDefaults },
 });
@@ -465,20 +397,25 @@ const dropdownMock = {
 
 const toCalendarEvent = (item: CaseItem): BigCalendarEvent => {
   const start = new Date(`${item.date}T${item.time}:00`);
-  const regBase = registrationDefaults(item.date);
-  const endTime = format(addHours(start, 1), "HH:mm");
-  const patient = mockPatientByHn[item.hn] ?? null;
+  const regBase = item.meta?.registration ?? registrationDefaults(item.date);
+  const endTime = regBase.timeTo || format(addHours(start, 1), "HH:mm");
+  const patient = item.meta?.patient ?? null;
   const meta: CaseMeta = {
     hn: item.hn,
     patient,
-    registration: { ...regBase, timeFrom: item.time, timeTo: endTime },
+    registration: { ...regBase, timeFrom: regBase.timeFrom || item.time, timeTo: endTime },
     procedure: {
       ...procedureDefaults,
-      room: item.camera,
-      procedure: item.procedure,
-      mainProcedure: item.procedure,
+      ...item.meta?.procedure,
+      room: item.meta?.procedure.room || item.camera,
+      procedure: item.meta?.procedure.procedure || item.procedure,
+      mainProcedure: item.meta?.procedure.mainProcedure || item.procedure,
     },
-    physician: { ...physicianDefaults, physician: item.doctor },
+    physician: {
+      ...physicianDefaults,
+      ...item.meta?.physician,
+      physician: item.meta?.physician.physician || item.doctor,
+    },
   };
   return {
     id: item.id,
@@ -514,8 +451,9 @@ export default function Page() {
   const [rangeFrom, setRangeFrom] = useState<string>(isoFromDate(today));
   const [rangeTo, setRangeTo] = useState<string>(isoFromDate(today));
   const [view, setView] = useState<View>(Views.MONTH);
-  const [calendarEvents, setCalendarEvents] = useState<BigCalendarEvent[]>(sampleCases.map(toCalendarEvent));
-  const [selectedEvent, setSelectedEvent] = useState<BigCalendarEvent | null>(calendarEvents[0] ?? null);
+  const [dashboardEvents, setDashboardEvents] = useState<BigCalendarEvent[]>([]);
+  const [monthEvents, setMonthEvents] = useState<BigCalendarEvent[]>([]);
+  const [selectedEvent, setSelectedEvent] = useState<BigCalendarEvent | null>(null);
   const [selectedSlotLabel, setSelectedSlotLabel] = useState<string>("");
   const [statusMessage, setStatusMessage] = useState("เลือกเคสที่ต้องการ แล้วกดวันที่เพื่อดูข้อมูล");
   const [timelineMode, setTimelineMode] = useState<"Calendar" | "Gantt">("Calendar");
@@ -525,10 +463,15 @@ export default function Page() {
   const [caseForm, setCaseForm] = useState<CaseForm>(() => buildEmptyForm(isoFromDate(today)));
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [optionsLoading, setOptionsLoading] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [monthLoading, setMonthLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [autoFetchHn, setAutoFetchHn] = useState(false);
   const fieldsDisabled = patientStatus !== "found";
   const fieldClass =
     "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-sky-300 disabled:bg-slate-100 disabled:text-slate-400";
   const labelClass = "text-[11px] uppercase tracking-[0.24em] text-slate-500";
+  const monthLabel = format(calendarDate, "MMMM yyyy", { locale: th });
 
   const parsedRangeFrom = toDateSafe(rangeFrom);
   const parsedRangeTo = toDateSafe(rangeTo);
@@ -539,17 +482,17 @@ export default function Page() {
     if (!rangeValid || !parsedRangeFrom || !parsedRangeTo) return [];
     const rangeStart = startOfDay(parsedRangeFrom);
     const rangeEnd = endOfDay(parsedRangeTo);
-    return calendarEvents
+    return dashboardEvents
       .filter((event) => event.start >= rangeStart && event.start <= rangeEnd)
       .sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [calendarEvents, parsedRangeFrom, parsedRangeTo, rangeValid]);
+  }, [dashboardEvents, parsedRangeFrom, parsedRangeTo, rangeValid]);
 
   const todayEvents = useMemo(() => {
     if (!filterDate) return [];
-    return calendarEvents
+    return dashboardEvents
       .filter((event) => isoFromDate(event.start) === filterDate)
       .sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [calendarEvents, filterDate]);
+  }, [dashboardEvents, filterDate]);
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -557,6 +500,84 @@ export default function Page() {
     const timer = setTimeout(() => setOptionsLoading(false), 650);
     return () => clearTimeout(timer);
   }, [modalOpen]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchDashboard = async () => {
+      if (!rangeValid) return;
+      setDashboardLoading(true);
+      setApiError(null);
+      const payload = { datefrom: rangeFrom, dateto: rangeTo };
+      const response = await postCalendagetdata(payload);
+      if (!active) return;
+      if ((response as { error?: unknown })?.error) {
+        setApiError((response as { message?: string })?.message || "ดึงข้อมูลไม่สำเร็จ");
+        setDashboardEvents([]);
+        setDashboardLoading(false);
+        return;
+      }
+      const items = toCaseItems(response);
+      setDashboardEvents(items.map(toCalendarEvent));
+      setDashboardLoading(false);
+    };
+    fetchDashboard();
+    return () => {
+      active = false;
+    };
+  }, [rangeFrom, rangeTo, rangeValid]);
+
+  useEffect(() => {
+    let active = true;
+    const fetchMonth = async () => {
+      let rangeStart = startOfMonth(calendarDate);
+      let rangeEnd = endOfMonth(calendarDate);
+
+      if (view === Views.WEEK) {
+        rangeStart = startOfWeek(calendarDate, { weekStartsOn: 0 });
+        rangeEnd = addDays(rangeStart, 6);
+      } else if (view === Views.DAY) {
+        rangeStart = startOfDay(calendarDate);
+        rangeEnd = startOfDay(calendarDate);
+      } else if (view === Views.AGENDA) {
+        rangeStart = startOfDay(calendarDate);
+        rangeEnd = addDays(rangeStart, 29);
+      }
+
+      const payload = { datefrom: isoFromDate(rangeStart), dateto: isoFromDate(rangeEnd) };
+      setMonthLoading(true);
+      setApiError(null);
+      const response = await postCalendagetdata(payload);
+      if (!active) return;
+      if ((response as { error?: unknown })?.error) {
+        setApiError((response as { message?: string })?.message || "ดึงข้อมูลไม่สำเร็จ");
+        setMonthEvents([]);
+        setMonthLoading(false);
+        return;
+      }
+      const items = toCaseItems(response);
+      setMonthEvents(items.map(toCalendarEvent));
+      setMonthLoading(false);
+    };
+    fetchMonth();
+    return () => {
+      active = false;
+    };
+  }, [calendarDate, view]);
+
+  useEffect(() => {
+    if (selectedEvent || monthEvents.length === 0) return;
+    setSelectedEvent(monthEvents[0]);
+  }, [monthEvents, selectedEvent]);
+
+  useEffect(() => {
+    if (!modalOpen || modalMode !== "edit") return;
+    const hn = caseForm.hn.trim();
+    if (!hn) return;
+    if (hasPatientDetails(caseForm.patient)) return;
+    if (autoFetchHn) return;
+    setAutoFetchHn(true);
+    void fetchPatientByHn(hn).finally(() => setAutoFetchHn(false));
+  }, [modalOpen, modalMode, caseForm.hn, caseForm.patient, autoFetchHn]);
 
   const updateRegistration = (field: keyof RegistrationInfo, value: string) => {
     setCaseForm((prev) => ({ ...prev, registration: { ...prev.registration, [field]: value } }));
@@ -570,11 +591,45 @@ export default function Page() {
     setCaseForm((prev) => ({ ...prev, physician: { ...prev.physician, [field]: value } }));
   };
 
+  const fetchPatientByHn = async (hn: string) => {
+    if (!hn) return;
+    setPatientStatus("loading");
+    Swal.fire({
+      title: "กำลังค้นหา HN",
+      text: "กำลังดึงข้อมูลผู้ป่วย...",
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+    const response = await getbyHN(hn);
+    Swal.close();
+
+    if (!(response as { error?: unknown })?.error) {
+      const patient = buildPatientFromResponse(hn, response);
+      if (patient) {
+        setCaseForm((prev) => ({ ...prev, hn, patient }));
+        setPatientStatus("found");
+        return true;
+      }
+      setCaseForm((prev) => ({ ...prev, hn, patient: null }));
+      setPatientStatus("notfound");
+      return false;
+    }
+    setPatientStatus("notfound");
+    setCaseForm((prev) => ({ ...prev, hn, patient: null }));
+    Swal.fire({
+      icon: "error",
+      title: "ค้นหา HN ไม่สำเร็จ",
+      text: (response as { message?: string })?.message || "โปรดลองใหม่อีกครั้ง",
+    });
+    return null;
+  };
+
   const openAddModal = (date?: Date) => {
     const baseDate = date ? isoFromDate(date) : filterDate || isoFromDate(today);
+    const slotTime = date && format(date, "HH:mm") !== "00:00" ? format(date, "HH:mm") : undefined;
     setModalMode("add");
     setEditingEventId(null);
-    setCaseForm(buildEmptyForm(baseDate));
+    setCaseForm(buildEmptyForm(baseDate, slotTime));
     setPatientStatus("idle");
     setModalOpen(true);
   };
@@ -587,7 +642,7 @@ export default function Page() {
       procedure: { ...procedureDefaults },
       physician: { ...physicianDefaults },
     };
-    const patient = meta.patient ?? (meta.hn ? mockPatientByHn[meta.hn] ?? null : null);
+    const patient = meta.patient ?? null;
     const hn = meta.hn || patient?.hn || "";
     setModalMode("edit");
     setEditingEventId(event.id);
@@ -602,33 +657,11 @@ export default function Page() {
     setModalOpen(true);
   };
 
-  const handleHnBlur = async () => {
-    const hn = caseForm.hn.replace(/\D/g, "");
+  const handleHnBlur = async (hndata: string) => {
+    const hn = hndata || caseForm.hn.trim();
     if (!hn) return;
-    if (hn.length !== 8) {
-      setPatientStatus("idle");
-      Swal.fire({ icon: "error", title: "HN ต้องมี 8 หลัก" });
-      return;
-    }
-    setPatientStatus("loading");
-    Swal.fire({
-      title: "กำลังค้นหา HN",
-      text: "จำลองการดึงข้อมูลผู้ป่วย...",
-      allowOutsideClick: false,
-      didOpen: () => Swal.showLoading(),
-    });
-    const result = await new Promise<PatientInfo | null>((resolve) => {
-      setTimeout(() => resolve(mockPatientByHn[hn] ?? null), 600);
-    });
-    Swal.close();
-
-    if (result) {
-      setCaseForm((prev) => ({ ...prev, hn, patient: result }));
-      setPatientStatus("found");
-      Swal.fire({ icon: "success", title: "พบข้อมูลผู้ป่วยแล้ว", timer: 1500, showConfirmButton: false });
-    } else {
-      setCaseForm((prev) => ({ ...prev, hn, patient: null }));
-      setPatientStatus("notfound");
+    const found = await fetchPatientByHn(hn);
+    if (found === false) {
       Swal.fire({ icon: "info", title: "ไม่พบข้อมูลผู้ป่วย", text: "ตรวจสอบ HN อีกครั้ง" });
     }
   };
@@ -653,7 +686,7 @@ export default function Page() {
       physician: caseForm.physician,
     };
     const currentStatus =
-      (editingEventId && calendarEvents.find((event) => event.id === editingEventId)?.status) || "Monitoring";
+      (editingEventId && monthEvents.find((event) => event.id === editingEventId)?.status) || "Monitoring";
     const nextEvent: BigCalendarEvent = {
       id: editingEventId || `case-${Date.now()}`,
       title: `${patientName} · ${roomLabel}`,
@@ -667,14 +700,14 @@ export default function Page() {
       meta,
     };
 
-    setCalendarEvents((prev) => {
+    const upsertEventList = (events: BigCalendarEvent[]) => {
       if (modalMode === "edit" && editingEventId) {
-        return prev.map((event) =>
-          event.id === editingEventId ? nextEvent : event
-        );
+        return events.map((event) => (event.id === editingEventId ? nextEvent : event));
       }
-      return [...prev, nextEvent];
-    });
+      return [...events, nextEvent];
+    };
+    setDashboardEvents(upsertEventList);
+    setMonthEvents(upsertEventList);
     setSelectedEvent(nextEvent);
 
     Swal.fire({
@@ -687,6 +720,8 @@ export default function Page() {
   };
 
   const handleSelectEvent = (event: BigCalendarEvent) => {
+    console.log(event)
+    handleHnBlur(event?.meta?.hn || "");
     setSelectedEvent(event);
     setStatusMessage(`ดูรายละเอียด ${event.patient} · ${formatThaiDisplay(event.start.toISOString().slice(0, 10))}`);
     openEditModal(event);
@@ -776,8 +811,8 @@ export default function Page() {
                       key={mode}
                       onClick={() => setTimelineMode(mode === "Calendar" ? "Calendar" : "Gantt")}
                       className={`rounded-full border px-3 py-1 transition ${timelineMode === (mode === "Calendar" ? "Calendar" : "Gantt")
-                          ? "bg-teal-500 text-white border-teal-400/70"
-                          : "bg-teal-500/10 text-teal-700 border-teal-200 hover:bg-teal-500/20"
+                        ? "bg-teal-500 text-white border-teal-400/70"
+                        : "bg-teal-500/10 text-teal-700 border-teal-200 hover:bg-teal-500/20"
                         }`}
                     >
                       {mode}
@@ -837,6 +872,12 @@ export default function Page() {
                   <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">เคสในช่วงวันที่</p>
                   <span className="text-[11px] text-slate-500">{headerRangeLabel}</span>
                 </div>
+                {dashboardLoading && (
+                  <p className="mt-2 text-[11px] text-slate-400">กำลังโหลดข้อมูล...</p>
+                )}
+                {!dashboardLoading && apiError && (
+                  <p className="mt-2 text-[11px] text-rose-500">{apiError}</p>
+                )}
                 <div className="mt-3 max-h-[320px] overflow-auto pr-1">
                   {eventsInRange.length === 0 && (
                     <p className="text-[11px] text-slate-500">ยังไม่มีเคสในช่วงนี้</p>
@@ -879,8 +920,8 @@ export default function Page() {
                   <div>
                     <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Calendar</p>
                     <h2 className="text-2xl font-semibold text-slate-900">Big Calenda</h2>
-                    <p className="text-[11px] text-slate-500">
-                      Views: {view.toUpperCase()} · Day selection: {selectedSlotLabel || "ยังไม่ระบุ"}
+                    <p className="text-2xl text-slate-500">
+                      เดือน {monthLabel} · View: {view.toUpperCase()}  
                     </p>
                   </div>
                   <div className="flex items-center gap-2 text-[11px]">
@@ -908,21 +949,22 @@ export default function Page() {
                           key={current}
                           onClick={() => setView(current)}
                           className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.3em] transition ${view === current
-                              ? "bg-teal-500 text-white border-teal-400/70"
-                              : "bg-teal-500/10 text-teal-700 border-teal-200 hover:bg-teal-500/20"
+                            ? "bg-teal-500 text-white border-teal-400/70"
+                            : "bg-teal-500/10 text-teal-700 border-teal-200 hover:bg-teal-500/20"
                             }`}
                         >
                           {current}
                         </button>
                       ))}
                     </div>
+                    {monthLoading && <span className="text-[11px] text-slate-400">กำลังโหลด...</span>}
                   </div>
                 </div>
 
                 <div className="flex flex-1 flex-col rounded-[30px] border border-slate-200 bg-white/90 p-4 shadow-xl">
                   <Calendar
                     localizer={localizer}
-                    events={calendarEvents}
+                    events={monthEvents}
                     startAccessor="start"
                     endAccessor="end"
                     views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
@@ -996,20 +1038,19 @@ export default function Page() {
                     <div className="mt-2 flex items-center gap-2">
                       <input
                         value={caseForm.hn}
-                        onChange={(e) => setCaseForm((prev) => ({ ...prev, hn: e.target.value.replace(/\D/g, "") }))}
+                        onChange={(e) => setCaseForm((prev) => ({ ...prev, hn: e.target.value }))}
                         onKeyDown={(e) => {
                           if (e.key === "Enter") {
                             e.preventDefault();
-                            handleHnBlur();
+                            handleHnBlur("");
                           }
                         }}
-                        maxLength={8}
                         className={fieldClass}
                         placeholder="12345678"
                       />
                       <button
                         type="button"
-                        onClick={handleHnBlur}
+                        onClick={() => handleHnBlur("")}
                         className="rounded-full border border-teal-200 bg-teal-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
                       >
                         ค้นหา
