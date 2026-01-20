@@ -302,11 +302,9 @@ function GlassCard(props: { title?: string; right?: React.ReactNode; children: R
 function PillButton(props: React.ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "primary" | "ghost" | "danger" }) {
   const tone = props.tone || "ghost";
   const cls =
-    tone === "primary"
-      ? "bg-emerald-500/15 hover:bg-emerald-500/20 border-emerald-400/20"
-      : tone === "danger"
-        ? "bg-rose-500/15 hover:bg-rose-500/20 border-rose-400/20"
-        : "bg-white/[0.06] hover:bg-white/[0.10] border-white/10";
+    tone === "ghost"
+      ? "bg-teal-500/10 hover:bg-teal-500/20 border-teal-400/20"
+      : "bg-teal-500/20 hover:bg-teal-500/30 border-teal-400/30";
   return (
     <button
       {...props}
@@ -319,8 +317,9 @@ function IconButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className={`h-10 w-10 rounded-2xl border border-white/10 bg-white/[0.06] hover:bg-white/[0.10] text-white/90 transition disabled:opacity-40 disabled:cursor-not-allowed ${props.className || ""
-        }`}
+      className={`h-10 w-10 rounded-2xl border border-teal-400/20 bg-teal-500/10 hover:bg-teal-500/20 text-white/90 transition disabled:opacity-40 disabled:cursor-not-allowed ${
+        props.className || ""
+      }`}
     />
   );
 }
@@ -1514,7 +1513,7 @@ function ImageEditorModal(props: {
                     setImgSaturation(0);
                     setImgShadow(0);
                   }}
-                  className="text-[11px] text-white/50 hover:text-white"
+                  className="text-[11px] text-teal-200/70 hover:text-teal-100"
                 >
                   Reset
                 </button>
@@ -1760,7 +1759,7 @@ export default function Page() {
     }
   }, []);
 
-  const playCaptureSound = useCallback((name: string, seqId: number, rate = 1.6) => {
+  const playCaptureSound = useCallback((name: string, seqId: number, rate = 1.2) => {
     if (typeof window === "undefined") return Promise.resolve();
     return new Promise<void>((resolve) => {
       if (seqId !== captureSeqRef.current) {
@@ -2804,7 +2803,7 @@ export default function Page() {
     }
     try {
       reportWindow.document.write(
-        "<!doctype html><title>กำลังสร้างรีพอร์ท...</title><body style='font-family:sans-serif;padding:24px;background:#0f172a;color:#e2e8f0'>กำลังสร้างรีพอร์ท...</body>"
+        "<!doctype html><title>กำลังสร้างรีพอร์ท...</title><body style='font-family:Sarabun,sans-serif;padding:24px;background:#0f172a;color:#e2e8f0'>กำลังสร้างรีพอร์ท...</body>"
       );
       reportWindow.opener = null;
     } catch {
@@ -3025,7 +3024,7 @@ export default function Page() {
             <div className="text-xs text-white/55 mb-3 space-y-1">
               <div className="truncate">Path:</div>
               <div className="truncate break-all">
-                <button onClick={onClickPath} className="underline hover:text-white">
+                <button onClick={onClickPath} className="underline text-teal-200/80 hover:text-teal-100">
                   {currentPathText}
                 </button>
               </div>
@@ -3053,7 +3052,7 @@ export default function Page() {
                   <div className="min-w-0 flex-1">
                     <button
                       type="button"
-                      className="text-sm text-white/90 truncate hover:underline"
+                      className="text-sm text-teal-100/90 truncate hover:underline"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => setPreviewKeepScroll(it)}
                       title="คลิกเพื่อ Preview"
@@ -3255,7 +3254,7 @@ export default function Page() {
 
                     <div className="mt-2 text-[11px] text-white/50">
                       Current path:{" "}
-                      <button onClick={onClickPath} className="underline text-white/75 hover:text-white break-all">
+                      <button onClick={onClickPath} className="underline text-teal-200/70 hover:text-teal-100 break-all">
                         {builderPathHint}
                       </button>
                     </div>
@@ -3276,7 +3275,7 @@ export default function Page() {
                 <div className="text-sm text-white/60 flex items-center justify-between gap-3">
                   <div className="truncate">
                     {builderPathHint}{" "}
-                    <button onClick={onClickPath} className="underline text-white/70 hover:text-white">
+                    <button onClick={onClickPath} className="underline text-teal-200/70 hover:text-teal-100">
                       (คลิกเพื่อคัดลอก/รีเฟรช)
                     </button>
                   </div>

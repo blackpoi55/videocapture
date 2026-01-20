@@ -5,10 +5,10 @@
   --background: #020617;
   --foreground: #e2e8f0;
 
-  /* ถ้าใช้ next/font (เช่น geist) ก็จะมาแมพตรงนี้
-     แต่ถ้าไม่ได้ใช้ ก็ยังมี fallback เป็น system font */
+  /* ใช้ Sarabun เป็นฟอนต์หลักทั้งโปรเจค */
   --font-sans: var(
-    --font-geist-sans,
+    --font-report-body,
+    "Sarabun",
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -84,8 +84,8 @@ html {
   --report-accent-2: #14b8a6;
   --report-line: #d9e1ea;
   --report-paper: #fdfcf8;
-  --report-title-font: var(--font-report-title), "Noto Sans Thai", serif;
-  --report-body-font: var(--font-report-body), "Noto Sans Thai", serif;
+  --report-title-font: var(--font-report-body), "Sarabun", sans-serif;
+  --report-body-font: var(--font-report-body), "Sarabun", sans-serif;
 }
 .report-root {
   min-height: 100vh;
@@ -103,9 +103,9 @@ html {
   justify-content: flex-end;
 }
 .report-root .print-btn {
-  border: 1px solid rgba(15, 118, 110, 0.35);
-  background: linear-gradient(135deg, rgba(20, 184, 166, 0.18), rgba(15, 118, 110, 0.3));
-  color: #0b1020;
+  border: 1px solid rgba(20, 184, 166, 0.55);
+  background: #14b8a6;
+  color: #ffffff;
   padding: 10px 16px;
   border-radius: 999px;
   font-weight: 700;
@@ -185,9 +185,9 @@ html {
   justify-content: flex-end;
 }
 .report-root .editor-btn {
-  border: 1px solid rgba(15, 118, 110, 0.25);
-  background: #fff;
-  color: var(--report-ink);
+  border: 1px solid rgba(20, 184, 166, 0.35);
+  background: rgba(20, 184, 166, 0.12);
+  color: #0f766e;
   padding: 4px 10px;
   border-radius: 999px;
   font-size: 11px;
@@ -198,18 +198,21 @@ html {
   cursor: not-allowed;
 }
 .report-root .editor-btn.active {
-  background: rgba(20, 184, 166, 0.18);
-  border-color: rgba(15, 118, 110, 0.45);
-  color: var(--report-accent);
+  background: #14b8a6;
+  border-color: rgba(15, 118, 110, 0.6);
+  color: #ffffff;
   font-weight: 600;
 }
 .report-root .editor-btn.danger {
-  border-color: rgba(185, 28, 28, 0.45);
-  color: #b91c1c;
+  border-color: rgba(20, 184, 166, 0.45);
+  background: rgba(20, 184, 166, 0.18);
+  color: #0f766e;
 }
 .report-root .editor-btn.reset-btn {
   white-space: nowrap;
-  background: rgba(15, 118, 110, 0.1);
+  background: rgba(20, 184, 166, 0.18);
+  border-color: rgba(20, 184, 166, 0.45);
+  color: #0f766e;
   font-weight: 600;
 }
 .report-root .editor-empty {

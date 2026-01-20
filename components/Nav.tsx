@@ -7,6 +7,7 @@ const navItems = [
   { href: "/", label: "Capture" },
   { href: "/calenda", label: "Calenda" },
   { href: "/register", label: "Register" },
+  { href: "/setting", label: "Setting" },
 ];
 
 export default function Nav() {
@@ -17,9 +18,9 @@ export default function Nav() {
   const linkBase =
     "rounded-full px-4 py-2 text-[13px] font-semibold transition-all duration-150 border";
   const linkInactive =
-    "text-slate-200/70 bg-slate-900/35 border-slate-400/20 hover:text-slate-100 hover:bg-slate-800/70 hover:border-slate-400/40";
+    "text-teal-100/70 bg-teal-500/10 border-teal-400/20 hover:text-teal-50 hover:bg-teal-500/20 hover:border-teal-400/50";
   const linkActive =
-    "text-slate-900 font-extrabold bg-gradient-to-br from-teal-300/95 to-blue-500/90 border-sky-300/80 shadow-[0_10px_24px_rgba(59,130,246,0.28)]";
+    "text-white font-extrabold bg-teal-500 border-teal-400/70 shadow-[0_10px_24px_rgba(20,184,166,0.35)]";
 
   return (
     <nav
@@ -29,7 +30,7 @@ export default function Nav() {
       <div className="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-3 py-3 max-[720px]:flex-col max-[720px]:items-start">
         <div className="flex items-center gap-4 flex-wrap">
           <div onClick={() => router.push("/")} className="flex cursor-pointer items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-[14px] border border-emerald-300/40 bg-gradient-to-br from-emerald-400/35 to-emerald-700/10 font-bold uppercase tracking-[0.16em] text-slate-200">
+            <div className="grid h-10 w-10 place-items-center rounded-[14px] border border-teal-400/40 bg-teal-500/20 font-bold uppercase tracking-[0.16em] text-teal-50">
               IV
             </div>
             <div className="leading-tight">
@@ -59,13 +60,13 @@ export default function Nav() {
         <div className="flex items-center gap-2 max-[720px]:w-full max-[720px]:justify-end">
           <button
             type="button"
-            className="rounded-full border border-slate-400/35 px-4 py-2 text-[12px] font-bold uppercase tracking-[0.2em] text-slate-200/80 transition hover:border-slate-300/60"
+            className="rounded-full border border-teal-400/40 bg-teal-500/10 px-4 py-2 text-[12px] font-bold uppercase tracking-[0.2em] text-teal-50/80 transition hover:border-teal-300/60 hover:bg-teal-500/20"
           >
             Login
           </button>
           <button
             type="button"
-            className="rounded-full border border-emerald-300/40 bg-gradient-to-br from-emerald-400/35 to-emerald-700/55 px-4 py-2 text-[12px] font-bold uppercase tracking-[0.2em] text-slate-100 transition hover:-translate-y-0.5 hover:border-slate-300/60"
+            className="rounded-full border border-teal-400/60 bg-teal-500 px-4 py-2 text-[12px] font-bold uppercase tracking-[0.2em] text-white transition hover:-translate-y-0.5 hover:border-teal-300/70 hover:bg-teal-600"
           >
             Logout
           </button>

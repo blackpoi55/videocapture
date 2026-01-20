@@ -734,19 +734,19 @@ export default function Page() {
     patientStatus === "found"
       ? "พบข้อมูลแล้ว"
       : patientStatus === "loading"
-      ? "กำลังค้นหา"
-      : patientStatus === "notfound"
-      ? "ไม่พบข้อมูล"
-      : "พร้อมค้นหา";
+        ? "กำลังค้นหา"
+        : patientStatus === "notfound"
+          ? "ไม่พบข้อมูล"
+          : "พร้อมค้นหา";
 
   const patientStatusClass =
     patientStatus === "found"
       ? "border-emerald-200 bg-emerald-100 text-emerald-700"
       : patientStatus === "loading"
-      ? "border-sky-200 bg-sky-100 text-sky-700"
-      : patientStatus === "notfound"
-      ? "border-rose-200 bg-rose-100 text-rose-700"
-      : "border-slate-200 bg-slate-100 text-slate-600";
+        ? "border-sky-200 bg-sky-100 text-sky-700"
+        : patientStatus === "notfound"
+          ? "border-rose-200 bg-rose-100 text-rose-700"
+          : "border-slate-200 bg-slate-100 text-slate-600";
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-white text-slate-900">
@@ -755,20 +755,19 @@ export default function Page() {
         <div className="absolute right-10 top-40 h-[420px] w-[520px] rounded-full bg-pink-500/20 blur-[160px]" />
       </div>
 
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[1320px] flex-col gap-6 px-6 py-10">
+      <div className="relative mx-auto flex min-h-screen w-full max-w-full flex-col gap-6 px-6 py-10">
         <header className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.6em] text-black/60">Intraview</p>
             <h1 className="text-3xl font-semibold text-black">Calenda</h1>
-           </div>
-           
+          </div>
+
         </header>
 
         <div className="flex flex-1 gap-6">
           <section className="w-[30%] min-w-[320px]">
             <div className="flex flex-col gap-4 rounded-[30px] border border-white/20 bg-white/80 px-6 py-6 shadow-[0_30px_80px_rgba(10,10,30,0.4)] backdrop-blur-3xl">
               <div className="flex items-center justify-between gap-3">
-                <div> 
+                <div>
                   <p className="text-xs uppercase tracking-[0.4em] text-slate-500">แดชบอร์ด</p>
                 </div>
                 <div className="flex gap-2 text-[11px] uppercase">
@@ -776,11 +775,10 @@ export default function Page() {
                     <button
                       key={mode}
                       onClick={() => setTimelineMode(mode === "Calendar" ? "Calendar" : "Gantt")}
-                      className={`rounded-full px-3 py-1 text-slate-700 transition ${
-                        timelineMode === (mode === "Calendar" ? "Calendar" : "Gantt")
-                          ? "bg-gradient-to-r from-pink-500 to-purple-500 text-black"
-                          : "bg-white/70 hover:bg-white"
-                      }`}
+                      className={`rounded-full border px-3 py-1 transition ${timelineMode === (mode === "Calendar" ? "Calendar" : "Gantt")
+                          ? "bg-teal-500 text-white border-teal-400/70"
+                          : "bg-teal-500/10 text-teal-700 border-teal-200 hover:bg-teal-500/20"
+                        }`}
                     >
                       {mode}
                     </button>
@@ -799,7 +797,7 @@ export default function Page() {
                     setRangeFrom(isoFromDate(today));
                     setRangeTo(isoFromDate(addDays(today, 6)));
                   }}
-                  className="mt-3 rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-700"
+                  className="mt-3 rounded-full border border-teal-200 bg-teal-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
                 >
                   สัปดาห์นี้
                 </button>
@@ -849,7 +847,7 @@ export default function Page() {
                         key={event.id}
                         type="button"
                         onClick={() => handleSelectEvent(event)}
-                        className="rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 text-left text-[12px] text-slate-700 shadow-sm transition hover:border-pink-300 hover:shadow-lg"
+                        className="rounded-2xl border border-teal-200 bg-teal-50 px-3 py-2 text-left text-[12px] text-teal-800 shadow-sm transition hover:border-teal-300 hover:bg-teal-100 hover:shadow-lg"
                       >
                         <div className="flex items-center justify-between text-[11px] text-slate-400">
                           <span>{formatThaiDisplay(isoFromDate(event.start))}</span>
@@ -888,19 +886,19 @@ export default function Page() {
                   <div className="flex items-center gap-2 text-[11px]">
                     <button
                       onClick={() => setCalendarDate(today)}
-                      className="rounded-full border border-slate-200 px-3 py-1 text-slate-500 transition hover:border-pink-400"
+                      className="rounded-full border border-teal-200 px-3 py-1 text-teal-700 transition hover:border-teal-400 hover:bg-teal-50"
                     >
                       Today
                     </button>
                     <button
                       onClick={() => handleMove(-1)}
-                      className="rounded-full border border-slate-200 px-3 py-1 text-slate-500 transition hover:border-pink-400"
+                      className="rounded-full border border-teal-200 px-3 py-1 text-teal-700 transition hover:border-teal-400 hover:bg-teal-50"
                     >
                       Back
                     </button>
                     <button
                       onClick={() => handleMove(1)}
-                      className="rounded-full border border-slate-200 px-3 py-1 text-slate-500 transition hover:border-pink-400"
+                      className="rounded-full border border-teal-200 px-3 py-1 text-teal-700 transition hover:border-teal-400 hover:bg-teal-50"
                     >
                       Next
                     </button>
@@ -909,11 +907,10 @@ export default function Page() {
                         <button
                           key={current}
                           onClick={() => setView(current)}
-                          className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.3em] transition ${
-                            view === current
-                              ? "bg-gradient-to-r from-pink-500 to-purple-500 text-black"
-                              : "border border-slate-200 bg-white text-slate-500"
-                          }`}
+                          className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.3em] transition ${view === current
+                              ? "bg-teal-500 text-white border-teal-400/70"
+                              : "bg-teal-500/10 text-teal-700 border-teal-200 hover:bg-teal-500/20"
+                            }`}
                         >
                           {current}
                         </button>
@@ -978,7 +975,7 @@ export default function Page() {
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="rounded-full border border-slate-200 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 hover:border-slate-400"
+                  className="rounded-full border border-teal-200 bg-teal-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
                 >
                   ปิด
                 </button>
@@ -1000,7 +997,12 @@ export default function Page() {
                       <input
                         value={caseForm.hn}
                         onChange={(e) => setCaseForm((prev) => ({ ...prev, hn: e.target.value.replace(/\D/g, "") }))}
-                        onBlur={handleHnBlur}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleHnBlur();
+                          }
+                        }}
                         maxLength={8}
                         className={fieldClass}
                         placeholder="12345678"
@@ -1008,7 +1010,7 @@ export default function Page() {
                       <button
                         type="button"
                         onClick={handleHnBlur}
-                        className="rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500 hover:border-slate-400"
+                        className="rounded-full border border-teal-200 bg-teal-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
                       >
                         ค้นหา
                       </button>
@@ -1486,7 +1488,7 @@ export default function Page() {
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="rounded-full border border-slate-200 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.2em] text-slate-500 hover:border-slate-400"
+                  className="rounded-full border border-teal-200 bg-teal-500/10 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.2em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
                 >
                   ยกเลิก
                 </button>
@@ -1494,7 +1496,7 @@ export default function Page() {
                   type="button"
                   onClick={handleSaveCase}
                   disabled={fieldsDisabled}
-                  className="rounded-full bg-gradient-to-r from-sky-400 to-emerald-400 px-6 py-2 text-[12px] font-semibold uppercase tracking-[0.2em] text-slate-900 shadow-lg transition disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-full bg-teal-500 px-6 py-2 text-[12px] font-semibold uppercase tracking-[0.2em] text-white shadow-lg transition hover:bg-teal-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {modalMode === "edit" ? "บันทึกข้อมูล" : "เพิ่มข้อมูล"}
                 </button>
