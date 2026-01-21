@@ -214,11 +214,11 @@ const MasterSection = () => {
                 }`}
               >
                 <div className="flex items-start gap-3">
-                  <button type="button" onClick={() => setSelectedTypeId(item.id)} className="text-left">
+                  <button type="button" onClick={() => setSelectedTypeId(item.id)} className="text-left w-[70%] cursor-pointer">
                     <div className="font-semibold">{item.code}</div>
                     <div className="text-[11px] text-slate-400">{item.desc}</div>
                   </button>
-                  <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                  <div className=" flex flex-wrap items-center justify-end gap-2 w-[30%]">
                     <button
                       type="button"
                       onClick={() => openTypeModal("edit", item)}
