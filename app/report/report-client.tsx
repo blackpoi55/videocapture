@@ -50,6 +50,7 @@ export default function ReportClient() {
     try {
       const payloadKey = searchParams.get("payload") || "";
       let raw: string | null = null;
+
       if (payloadKey) {
         raw = localStorage.getItem(payloadKey);
       }
@@ -59,6 +60,7 @@ export default function ReportClient() {
       if (!raw) {
         raw = localStorage.getItem(REPORT_STORAGE_KEY);
       }
+
       if (!raw) {
         setError("ไม่พบข้อมูลรีพอร์ท");
         setData(null);
@@ -66,16 +68,20 @@ export default function ReportClient() {
         setOriginalImages([]);
         return;
       }
+
       const parsed = JSON.parse(raw) as ReportPayload;
       const rawImages = Array.isArray(parsed.images) ? parsed.images : [];
+
       const prepared = rawImages.map((img, idx) => ({
         ...img,
         id: `${idx}-${img.name}-${img.size}`,
         featured: false,
       }));
+
       setData(parsed);
       setImagesState(prepared);
       setOriginalImages(prepared.map((img) => ({ ...img })));
+
       sessionStorage.setItem(REPORT_STORAGE_KEY, raw);
       if (payloadKey) {
         localStorage.removeItem(payloadKey);
@@ -93,13 +99,11 @@ export default function ReportClient() {
   const moveImage = useCallback((id: string, direction: -1 | 1) => {
     setImagesState((prev) => {
       const index = prev.findIndex((img) => img.id === id);
-      if (index === -1) {
-        return prev;
-      }
+      if (index === -1) return prev;
+
       const nextIndex = index + direction;
-      if (nextIndex < 0 || nextIndex >= prev.length) {
-        return prev;
-      }
+      if (nextIndex < 0 || nextIndex >= prev.length) return prev;
+
       const next = [...prev];
       const [picked] = next.splice(index, 1);
       next.splice(nextIndex, 0, picked);
@@ -110,36 +114,29 @@ export default function ReportClient() {
   const toggleFeatured = useCallback((id: string) => {
     setImagesState((prev) => {
       let toggledOn = false;
+
       const next = prev.map((img) => {
-        if (img.id !== id) {
-          return img;
-        }
-        const nextFeatured = !img.featured;
-        toggledOn = nextFeatured;
-        return { ...img, featured: nextFeatured };
+        if (img.id !== id) return img;
+        const nf = !img.featured;
+        toggledOn = nf;
+        return { ...img, featured: nf };
       });
 
-      if (!toggledOn) {
-        return next;
-      }
+      if (!toggledOn) return next;
 
-      const featuredCount = next.filter((img) => img.featured).length;
-      if (featuredCount <= 2) {
-        return next;
-      }
+      const featuredCount = next.filter((i) => i.featured).length;
+      if (featuredCount <= 2) return next;
 
       const keep = new Set<string>([id]);
       for (const img of next) {
-        if (keep.size >= 2) {
-          break;
-        }
-        if (img.featured && img.id !== id) {
-          keep.add(img.id);
-        }
+        if (keep.size >= 2) break;
+        if (img.featured && img.id !== id) keep.add(img.id);
       }
 
       return next.map((img) =>
-        img.featured && !keep.has(img.id) ? { ...img, featured: false } : img
+        img.featured && !keep.has(img.id)
+          ? { ...img, featured: false }
+          : img
       );
     });
   }, []);
@@ -153,26 +150,17 @@ export default function ReportClient() {
   }, [originalImages]);
 
   const isDirty = useMemo(() => {
-    if (!imagesState.length && !originalImages.length) {
-      return false;
-    }
-    if (imagesState.length !== originalImages.length) {
-      return true;
-    }
-    for (let i = 0; i < imagesState.length; i += 1) {
-      const current = imagesState[i];
-      const original = originalImages[i];
-      if (!original) {
-        return true;
-      }
-      if (current.id !== original.id || current.featured !== original.featured) {
-        return true;
-      }
+    if (imagesState.length !== originalImages.length) return true;
+    for (let i = 0; i < imagesState.length; i++) {
+      const c = imagesState[i];
+      const o = originalImages[i];
+      if (!o || c.id !== o.id || c.featured !== o.featured) return true;
     }
     return false;
   }, [imagesState, originalImages]);
 
   const images = imagesState;
+
   const {
     featuredImages,
     firstPageImages,
@@ -180,21 +168,24 @@ export default function ReportClient() {
     extraPages,
     extraCount,
   } = useMemo(() => {
-    const featured = images.filter((img) => img.featured);
-    const featuredLimited = featured.slice(0, 2);
-    const featuredIds = new Set(featuredLimited.map((img) => img.id));
-    const remaining = images.filter((img) => !featuredIds.has(img.id));
+    const featured = images.filter((i) => i.featured).slice(0, 2);
+    const ids = new Set(featured.map((i) => i.id));
+    const remain = images.filter((i) => !ids.has(i.id));
+
     const limit =
-      featuredLimited.length === 2 ? 0 : featuredLimited.length === 1 ? 3 : 6;
-    const firstPage = remaining.slice(0, limit);
-    const rest = remaining.slice(limit);
+      featured.length === 2 ? 0 : featured.length === 1 ? 3 : 6;
+
+    const first = remain.slice(0, limit);
+    const rest = remain.slice(limit);
+
     const pages: ReportImageItem[][] = [];
     for (let i = 0; i < rest.length; i += 6) {
       pages.push(rest.slice(i, i + 6));
     }
+
     return {
-      featuredImages: featuredLimited,
-      firstPageImages: firstPage,
+      featuredImages: featured,
+      firstPageImages: first,
       firstPageLimit: limit,
       extraPages: pages,
       extraCount: rest.length,
@@ -202,35 +193,37 @@ export default function ReportClient() {
   }, [images]);
 
   const firstPageSlots = useMemo(() => {
-    if (firstPageLimit === 0) {
-      return [];
-    }
-    if (images.length === 0) {
+    if (firstPageLimit === 0) return [];
+    if (!images.length)
       return Array.from({ length: firstPageLimit }, () => null);
-    }
     return firstPageImages;
   }, [firstPageImages, firstPageLimit, images.length]);
 
   const featuredCount = useMemo(
-    () => imagesState.filter((img) => img.featured).length,
+    () => imagesState.filter((i) => i.featured).length,
     [imagesState]
   );
-  const totalPages = useMemo(() => 2 + extraPages.length, [extraPages.length]);
+
+  const totalPages = useMemo(
+    () => 2 + extraPages.length,
+    [extraPages.length]
+  );
 
   const an = data?.an || "000000";
+
   const reportId = useMemo(() => {
-    if (!printedAt) {
-      return `IV-${an}-`;
-    }
-    const dateStamp = `${printedAt.getFullYear().toString().slice(-2)}${String(
-      printedAt.getMonth() + 1
-    ).padStart(2, "0")}${String(printedAt.getDate()).padStart(2, "0")}`;
-    return `IV-${an}-${dateStamp}`;
+    if (!printedAt) return `IV-${an}-`;
+    const d = printedAt;
+    const ds = `${d.getFullYear().toString().slice(-2)}${String(
+      d.getMonth() + 1
+    ).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+    return `IV-${an}-${ds}`;
   }, [printedAt, an]);
 
   const safeDate = data?.date || "-";
   const safeHN = data?.hn || "-";
   const safeAN = data?.an || "-";
+
   const printStamp = useMemo(
     () => (printedAt ? printedAt.toLocaleString("th-TH") : "-"),
     [printedAt]
@@ -238,12 +231,9 @@ export default function ReportClient() {
 
   if (!isReady) {
     return (
-      <main className="min-h-screen bg-[#eef2f6] text-slate-700" aria-busy="true">
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#eef2f6]">
-          <div className="flex items-center gap-3" role="status" aria-live="polite">
-            <span className="h-2.5 w-2.5 rounded-full bg-teal-600 animate-pulse" />
-            <span className="text-xs uppercase tracking-[0.2em] text-slate-500">Loading report</span>
-          </div>
+      <main className="min-h-screen bg-[#eef2f6] text-slate-700">
+        <div className="fixed inset-0 flex items-center justify-center">
+          Loading...
         </div>
       </main>
     );
