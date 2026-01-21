@@ -1444,16 +1444,11 @@ export default function Page() {
                             event.meta?.procedure.room ||
                             event.camera ||
                             "ไม่ระบุห้อง"}{" "}
-                          ·{" "}
-                          {getOptionLabel(physicianOptions, event.meta?.physician.physician || event.doctor) ||
-                            event.meta?.physician.physician ||
-                            event.doctor ||
-                            "ไม่ระบุแพทย์"}
+
                         </p>
                         <p className="text-[11px] text-slate-500">
-                          {event.camera} · {event.procedure}
                           {getOptionLabel(physicianOptions, event.doctor)
-                            ? ` · ${getOptionLabel(physicianOptions, event.doctor)}`
+                            ? ` ${getOptionLabel(physicianOptions, event.doctor)}`
                             : ""}
                         </p>
                       </button>
@@ -1774,7 +1769,7 @@ export default function Page() {
                 <h3 className="text-sm font-semibold text-slate-700">Procedure Room</h3>
                 <div className="mt-4 grid grid-cols-12 gap-3">
                   <div className="col-span-12 md:col-span-4">
-                    <label className={labelClass}>Room</label>
+                    <label className={labelClass}>Procedure</label>
                     <select
                       className={fieldClass}
                       disabled={fieldsDisabled || optionsLoading}
@@ -1784,23 +1779,6 @@ export default function Page() {
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกห้อง"}</option>
                       {!optionsLoading &&
                         procedureRoomOptions.map((opt) => (
-                          <option key={opt.id} value={opt.id}>
-                            {opt.label}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="col-span-12 md:col-span-4">
-                    <label className={labelClass}>Procedure</label>
-                    <select
-                      className={fieldClass}
-                      disabled={fieldsDisabled || optionsLoading}
-                      value={caseForm.procedure.procedure}
-                      onChange={(e) => updateProcedure("procedure", e.target.value)}
-                    >
-                      <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกหัตถการ"}</option>
-                      {!optionsLoading &&
-                        procedureOptions.map((opt) => (
                           <option key={opt.id} value={opt.id}>
                             {opt.label}
                           </option>
@@ -1824,7 +1802,23 @@ export default function Page() {
                         ))}
                     </select>
                   </div>
-
+                  <div className="col-span-12 md:col-span-4">
+                    <label className={labelClass}>Sub  Procedure</label>
+                    <select
+                      className={fieldClass}
+                      disabled={fieldsDisabled || optionsLoading}
+                      value={caseForm.procedure.sub}
+                      onChange={(e) => updateProcedure("sub", e.target.value)}
+                    >
+                      <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก Sub"}</option>
+                      {!optionsLoading &&
+                        subOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                   <div className="col-span-12 md:col-span-4">
                     <label className={labelClass}>Financial</label>
                     <select
@@ -1911,23 +1905,7 @@ export default function Page() {
                         ))}
                     </select>
                   </div>
-                  <div className="col-span-12 md:col-span-4">
-                    <label className={labelClass}>Sub</label>
-                    <select
-                      className={fieldClass}
-                      disabled={fieldsDisabled || optionsLoading}
-                      value={caseForm.procedure.sub}
-                      onChange={(e) => updateProcedure("sub", e.target.value)}
-                    >
-                      <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก Sub"}</option>
-                      {!optionsLoading &&
-                        subOptions.map((opt) => (
-                          <option key={opt.id} value={opt.id}>
-                            {opt.label}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
+
 
                   <div className="col-span-12 md:col-span-4">
                     <label className={labelClass}>Anesthesia</label>

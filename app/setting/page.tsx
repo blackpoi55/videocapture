@@ -1,7 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getSelectTypes, getvaluebyselecttypeid } from "@/action/api";
+import {
+  deleteSelectType,
+  deleteSelectValue,
+  getSelectTypes,
+  getvaluebyselecttypeid,
+  postSelectType,
+  postSelectValue,
+  putSelectType,
+  putSelectValue,
+} from "@/action/api";
 
 const sections = [
   { id: "master", title: "Master", subtitle: "ข้อมูลหน่วยงานและแบรนด์" },
@@ -60,6 +69,73 @@ const MasterSection = () => {
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState("");
+  const [valueFilter, setValueFilter] = useState("");
+
+  const loadTypes = useCallback(
+    async (preferredId?: string, fallbackId?: string) => {
+      setLoading(true);
+      setError(null);
+      const response = await getSelectTypes();
+      if ((response as { error?: unknown })?.error) {
+        setError((response as { message?: string })?.message || "โหลดรายการไม่สำเร็จ");
+        setLoading(false);
+        return;
+      }
+      const raw = (response as { data?: unknown })?.data ?? response;
+      const items = Array.isArray(raw) ? raw : [];
+      const mapped = items
+        .map((item) => {
+          const row = item as Record<string, unknown>;
+          const id = String(row.id ?? row.selecttypeid ?? "").trim();
+          const code = String(row.selecttypecode ?? row.code ?? "").trim();
+          const desc = String(row.selecttypedesc ?? row.desc ?? "").trim();
+          const isActive = Boolean(row.isactive ?? row.isActive);
+          return id && code ? { id, code, desc, isActive } : null;
+        })
+        .filter(Boolean) as Array<{ id: string; code: string; desc: string; isActive: boolean }>;
+      setSelectTypes(mapped);
+      const nextSelected =
+        (preferredId && mapped.find((item) => item.id === preferredId)?.id) ||
+        (fallbackId && mapped.find((item) => item.id === fallbackId)?.id) ||
+        mapped[0]?.id ||
+        "";
+      setSelectedTypeId(nextSelected);
+      setLoading(false);
+    },
+    []
+  );
+
+  const loadValues = useCallback(
+    async (typeId: string) => {
+      if (!typeId) return;
+      setDetailLoading(true);
+      setError(null);
+      const response = await getvaluebyselecttypeid(typeId);
+      if ((response as { error?: unknown })?.error) {
+        setError((response as { message?: string })?.message || "โหลดข้อมูลไม่สำเร็จ");
+        setDetailLoading(false);
+        return;
+      }
+      const raw = (response as { data?: unknown })?.data ?? response;
+      const rows = Array.isArray(raw) ? raw : [];
+      const mappedValues = rows
+        .map((item) => {
+          const row = item as Record<string, unknown>;
+          const id = String(row.id ?? row.valueid ?? "").trim();
+          const code = String(row.valuecode ?? row.code ?? row.value ?? "").trim();
+          const desc = String(row.valuedesc ?? row.desc ?? row.label ?? "").trim();
+          const isActive = Boolean(row.isactive ?? row.isActive ?? true);
+          return id && (code || desc) ? { id, code, desc, isActive } : null;
+        })
+        .filter(Boolean) as Array<{ id: string; code: string; desc: string; isActive: boolean }>;
+      setValueItems(mappedValues);
+      setEditingValueId(null);
+      setValueForm({ code: "", desc: "", isActive: true });
+      setDetailLoading(false);
+    },
+    []
+  );
 
   const openTypeModal = (mode: "add" | "edit" | "delete", item?: { id: string; code: string; desc: string; isActive: boolean }) => {
     setTypeModalMode(mode);
@@ -89,41 +165,110 @@ const MasterSection = () => {
     setValueModalOpen(true);
   };
 
-  useEffect(() => {
-    let active = true;
-    const loadTypes = async () => {
+  const handleSaveType = useCallback(async () => {
+    setError(null);
+    if (typeModalMode === "delete" && activeType) {
       setLoading(true);
-      setError(null);
-      const response = await getSelectTypes();
-      if (!active) return;
+      const response = await deleteSelectType(activeType.id);
+      setLoading(false);
       if ((response as { error?: unknown })?.error) {
-        setError((response as { message?: string })?.message || "โหลดรายการไม่สำเร็จ");
-        setLoading(false);
+        setError((response as { message?: string })?.message || "ลบไม่สำเร็จ");
         return;
       }
-      const raw = (response as { data?: unknown })?.data ?? response;
-      const items = Array.isArray(raw) ? raw : [];
-      const mapped = items
-        .map((item) => {
-          const row = item as Record<string, unknown>;
-          const id = String(row.id ?? row.selecttypeid ?? "").trim();
-          const code = String(row.selecttypecode ?? row.code ?? "").trim();
-          const desc = String(row.selecttypedesc ?? row.desc ?? "").trim();
-          const isActive = Boolean(row.isactive ?? row.isActive);
-          return id && code ? { id, code, desc, isActive } : null;
-        })
-        .filter(Boolean) as Array<{ id: string; code: string; desc: string; isActive: boolean }>;
-      setSelectTypes(mapped);
-      if (mapped.length && !selectedTypeId) {
-        setSelectedTypeId(mapped[0].id);
+      setTypeModalOpen(false);
+      const fallbackId = selectedTypeId === activeType.id ? "" : selectedTypeId;
+      await loadTypes(undefined, fallbackId);
+      return;
+    }
+
+    const code = typeForm.code.trim();
+    if (!code) return;
+    const payload = {
+      selecttypecode: code,
+      selecttypedesc: typeForm.desc.trim(),
+      isactive: typeForm.isActive,
+    };
+    setLoading(true);
+    const response =
+      typeModalMode === "edit" && editingTypeId
+        ? await putSelectType(editingTypeId, payload)
+        : await postSelectType(payload);
+    setLoading(false);
+    if ((response as { error?: unknown })?.error) {
+      setError((response as { message?: string })?.message || "บันทึกไม่สำเร็จ");
+      return;
+    }
+    const raw = (response as { data?: unknown })?.data ?? response;
+    const row = raw as Record<string, unknown>;
+    const nextId = String(row?.id ?? row?.selecttypeid ?? editingTypeId ?? "").trim();
+    setTypeModalOpen(false);
+    setEditingTypeId(null);
+    setTypeForm({ code: "", desc: "", isActive: true });
+    await loadTypes(nextId || undefined, selectedTypeId);
+  }, [
+    activeType,
+    editingTypeId,
+    loadTypes,
+    selectedTypeId,
+    typeForm.code,
+    typeForm.desc,
+    typeForm.isActive,
+    typeModalMode,
+  ]);
+
+  const handleSaveValue = useCallback(async () => {
+    setError(null);
+    if (!selectedTypeId) return;
+    if (valueModalMode === "delete" && activeValue) {
+      setDetailLoading(true);
+      const response = await deleteSelectValue(activeValue.id);
+      setDetailLoading(false);
+      if ((response as { error?: unknown })?.error) {
+        setError((response as { message?: string })?.message || "ลบไม่สำเร็จ");
+        return;
       }
-      setLoading(false);
+      setValueModalOpen(false);
+      await loadValues(selectedTypeId);
+      return;
+    }
+
+    const code = valueForm.code.trim();
+    const desc = valueForm.desc.trim();
+    if (!code && !desc) return;
+    const payload = {
+      selecttypeid: selectedTypeId,
+      valuecode: code,
+      valuedesc: desc,
+      isactive: valueForm.isActive,
     };
-    loadTypes();
-    return () => {
-      active = false;
-    };
-  }, []);
+    setDetailLoading(true);
+    const response =
+      valueModalMode === "edit" && editingValueId
+        ? await putSelectValue(editingValueId, payload)
+        : await postSelectValue(payload);
+    setDetailLoading(false);
+    if ((response as { error?: unknown })?.error) {
+      setError((response as { message?: string })?.message || "บันทึกไม่สำเร็จ");
+      return;
+    }
+    setValueModalOpen(false);
+    setEditingValueId(null);
+    setValueForm({ code: "", desc: "", isActive: true });
+    await loadValues(selectedTypeId);
+  }, [
+    activeValue,
+    editingValueId,
+    loadValues,
+    selectedTypeId,
+    valueForm.code,
+    valueForm.desc,
+    valueForm.isActive,
+    valueModalMode,
+  ]);
+
+  useEffect(() => {
+    void loadTypes();
+  }, [loadTypes]);
 
   useEffect(() => {
     const selectedType = selectTypes.find((item) => item.id === selectedTypeId);
@@ -137,40 +282,29 @@ const MasterSection = () => {
   }, [selectedTypeId, selectTypes]);
 
   useEffect(() => {
-    let active = true;
-    const loadDetail = async () => {
-      if (!selectedTypeId) return;
-      setDetailLoading(true);
-      setError(null);
-      const response = await getvaluebyselecttypeid(selectedTypeId);
-      if (!active) return;
-      if ((response as { error?: unknown })?.error) {
-        setError((response as { message?: string })?.message || "โหลดข้อมูลไม่สำเร็จ");
-        setDetailLoading(false);
-        return;
-      }
-      const raw = (response as { data?: unknown })?.data ?? response;
-      const rows = Array.isArray(raw) ? raw : [];
-      const mappedValues = rows
-        .map((item) => {
-          const row = item as Record<string, unknown>;
-          const id = String(row.id ?? row.valueid ?? "").trim();
-          const code = String(row.valuecode ?? row.code ?? row.value ?? "").trim();
-          const desc = String(row.valuedesc ?? row.desc ?? row.label ?? "").trim();
-          const isActive = Boolean(row.isactive ?? row.isActive ?? true);
-          return id && (code || desc) ? { id, code, desc, isActive } : null;
-        })
-        .filter(Boolean) as Array<{ id: string; code: string; desc: string; isActive: boolean }>;
-      setValueItems(mappedValues);
-      setEditingValueId(null);
-      setValueForm({ code: "", desc: "", isActive: true });
-      setDetailLoading(false);
-    };
-    loadDetail();
-    return () => {
-      active = false;
-    };
-  }, [selectedTypeId]);
+    if (!selectedTypeId) return;
+    void loadValues(selectedTypeId);
+  }, [selectedTypeId, loadValues]);
+
+  const filteredSelectTypes = useMemo(() => {
+    const query = typeFilter.trim().toLowerCase();
+    if (!query) return selectTypes;
+    return selectTypes.filter((item) => {
+      const code = item.code.toLowerCase();
+      const desc = item.desc.toLowerCase();
+      return code.includes(query) || desc.includes(query);
+    });
+  }, [selectTypes, typeFilter]);
+
+  const filteredValueItems = useMemo(() => {
+    const query = valueFilter.trim().toLowerCase();
+    if (!query) return valueItems;
+    return valueItems.filter((item) => {
+      const code = item.code.toLowerCase();
+      const desc = item.desc.toLowerCase();
+      return code.includes(query) || desc.includes(query);
+    });
+  }, [valueItems, valueFilter]);
 
   return (
     <div className="space-y-6">
@@ -198,13 +332,22 @@ const MasterSection = () => {
             </div>
           </div>
           {error && <p className="mt-2 text-xs text-rose-500">{error}</p>}
-          <div className="mt-4 max-h-[520px] space-y-2 overflow-auto pr-1">
-            {selectTypes.length === 0 && (
+          <div className="mt-3">
+            <input
+              type="text"
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value)}
+              placeholder="ค้นหา Type"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+            />
+          </div>
+          <div className="mt-3 max-h-[520px] space-y-2 overflow-auto pr-1">
+            {filteredSelectTypes.length === 0 && (
               <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
-                ยังไม่มีรายการ
+                ไม่พบรายการ
               </div>
             )}
-            {selectTypes.map((item) => (
+            {filteredSelectTypes.map((item) => (
               <div
                 key={item.id}
                 className={`w-full rounded-xl border px-3 py-3 text-left text-xs transition ${
@@ -247,7 +390,7 @@ const MasterSection = () => {
               <div className="text-sm font-semibold text-slate-700">{masterForm.code || "-"}</div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-xs text-slate-400">{valueItems.length} รายการ</div>
+              <div className="text-xs text-slate-400">{filteredValueItems.length} รายการ</div>
               <button
                 type="button"
                 onClick={() => openValueModal("add")}
@@ -258,8 +401,17 @@ const MasterSection = () => {
             </div>
           </div>
           {detailLoading && <p className="mt-2 text-xs text-slate-400">กำลังโหลดข้อมูล...</p>}
+          <div className="mt-3">
+            <input
+              type="text"
+              value={valueFilter}
+              onChange={(event) => setValueFilter(event.target.value)}
+              placeholder="ค้นหารายการ"
+              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+            />
+          </div>
 
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-[0.24em] text-slate-400">
@@ -270,15 +422,15 @@ const MasterSection = () => {
                 </tr>
               </thead>
               <tbody>
-                {valueItems.length === 0 && (
+                {filteredValueItems.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-4 py-6 text-center text-xs text-slate-400">
-                      ยังไม่มีรายการ
+                      ไม่พบรายการ
                     </td>
                   </tr>
                 )}
 
-                {valueItems.map((item) => (
+                {filteredValueItems.map((item) => (
                   <tr key={item.id} className="transition hover:bg-slate-50/70">
                     <td className="border-b border-slate-200/60 px-4 py-3 font-semibold text-slate-700">
                       {item.code || "-"}
@@ -394,34 +546,7 @@ const MasterSection = () => {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (typeModalMode === "delete" && activeType) {
-                    setSelectTypes((prev) => prev.filter((item) => item.id !== activeType.id));
-                    if (selectedTypeId === activeType.id) {
-                      const next = selectTypes.find((item) => item.id !== activeType.id);
-                      setSelectedTypeId(next?.id ?? "");
-                    }
-                    setTypeModalOpen(false);
-                    return;
-                  }
-                  if (!typeForm.code.trim()) return;
-                  const next = {
-                    id: editingTypeId ?? `new-${Date.now()}`,
-                    code: typeForm.code.trim(),
-                    desc: typeForm.desc.trim(),
-                    isActive: typeForm.isActive,
-                  };
-                  setSelectTypes((prev) => {
-                    if (editingTypeId) {
-                      return prev.map((item) => (item.id === editingTypeId ? next : item));
-                    }
-                    return [next, ...prev];
-                  });
-                  setSelectedTypeId(next.id);
-                  setEditingTypeId(null);
-                  setTypeForm({ code: "", desc: "", isActive: true });
-                  setTypeModalOpen(false);
-                }}
+                onClick={handleSaveType}
                 className={`rounded-full px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white ${
                   typeModalMode === "delete" ? "bg-rose-500 hover:bg-rose-600" : "bg-teal-500 hover:bg-teal-600"
                 }`}
@@ -508,29 +633,7 @@ const MasterSection = () => {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (valueModalMode === "delete" && activeValue) {
-                    setValueItems((prev) => prev.filter((item) => item.id !== activeValue.id));
-                    setValueModalOpen(false);
-                    return;
-                  }
-                  if (!valueForm.code.trim() && !valueForm.desc.trim()) return;
-                  const next = {
-                    id: editingValueId ?? `new-${Date.now()}`,
-                    code: valueForm.code.trim(),
-                    desc: valueForm.desc.trim(),
-                    isActive: valueForm.isActive,
-                  };
-                  setValueItems((prev) => {
-                    if (editingValueId) {
-                      return prev.map((item) => (item.id === editingValueId ? next : item));
-                    }
-                    return [next, ...prev];
-                  });
-                  setEditingValueId(null);
-                  setValueForm({ code: "", desc: "", isActive: true });
-                  setValueModalOpen(false);
-                }}
+                onClick={handleSaveValue}
                 className={`rounded-full px-5 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white ${
                   valueModalMode === "delete" ? "bg-rose-500 hover:bg-rose-600" : "bg-teal-500 hover:bg-teal-600"
                 }`}
@@ -673,6 +776,16 @@ const CameraSection = ({ active }: { active: boolean }) => {
     );
   };
 
+  const handleSavePreset = useCallback(() => {
+    if (!activePreset) return;
+    const payload = {
+      id: activePreset.id,
+      name: activePreset.name,
+      values: { ...activePreset.values },
+    };
+    console.log("camera preset payload", payload);
+  }, [activePreset]);
+
   const previewFilter = useMemo(() => {
     const values = activePreset?.values;
     if (!values) return "none";
@@ -709,6 +822,7 @@ const CameraSection = ({ active }: { active: boolean }) => {
     if (!navigator.mediaDevices?.enumerateDevices) return;
     const all = await navigator.mediaDevices.enumerateDevices();
     const cams = all.filter((device) => device.kind === "videoinput");
+    console.log('cams',cams)
     setDevices(cams);
     if (!deviceId && cams[0]) setDeviceId(cams[0].deviceId);
   }, [deviceId]);
@@ -926,6 +1040,7 @@ const CameraSection = ({ active }: { active: boolean }) => {
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
+                onClick={handleSavePreset}
                 className="rounded-full border border-teal-300/50 bg-teal-500/10 px-5 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-teal-700 hover:bg-teal-500/20"
               >
                 บันทึกพรีเซ็ต

@@ -1,4 +1,4 @@
-import { GET, POST, POST_Login, PUT } from "@/components/apicomponent/api";
+import { DELETE, GET, POST, POST_Login, PUT } from "@/components/apicomponent/api";
 
 export const loginapi = (data: unknown) => {
   return POST_Login("/auth/login", data);
@@ -19,6 +19,30 @@ export const getSelectTypes = () => {
 export const getvaluebyselecttypeid = (id: string) => {
   return GET("/select-values/getvaluebyselecttypeid/"+id);
 }
+
+export const postSelectType = (data: unknown) => {
+  return POST("/select-types", data);
+};
+
+export const putSelectType = (id: string, data: unknown) => {
+  return PUT(`/select-types/${id}`, data);
+};
+
+export const deleteSelectType = (id: string) => {
+  return DELETE(`/select-types/${id}`);
+};
+
+export const postSelectValue = (data: unknown) => {
+  return POST("/select-values", data);
+};
+
+export const putSelectValue = (id: string, data: unknown) => {
+  return PUT(`/select-values/${id}`, data);
+};
+
+export const deleteSelectValue = (id: string) => {
+  return DELETE(`/select-values/${id}`);
+};
 
 export const postPatient = (data: unknown) => {
   return POST("/patients", data);
