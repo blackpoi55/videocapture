@@ -1,10 +1,13 @@
 "use client";
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Select, { components, SingleValue } from "react-select";
 import Swal from "sweetalert2";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { getCasebyid, getSelectTypes, getvaluebyselecttypeid } from "@/action/api";
+import { SELECT_TYPE_CODES, SELECT_TYPE_IDS } from "@/config";
 
 /** ---------------------------
  *  Small IndexedDB helper (store FileSystem handles)
@@ -152,14 +155,135 @@ function parseDateKey(key: string) {
   return isNaN(date.getTime()) ? null : date;
 }
 
+function normalizeText(value: unknown) {
+  return value == null ? "" : String(value).trim();
+}
+
+function normalizeCode(value: unknown) {
+  return normalizeText(value).toLowerCase();
+}
+
+function parseApiDate(value: unknown) {
+  if (!value) return null;
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const raw = normalizeText(value);
+  if (!raw) return null;
+  if (/^\d{6}$/.test(raw)) return parseDateKey(raw);
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatDateDisplay(value: unknown) {
+  const parsed = parseApiDate(value);
+  if (!parsed) return normalizeText(value) || "-";
+  return formatThaiBEDisplay(parsed);
+}
+
+function formatTimeDisplay(value: unknown) {
+  const raw = normalizeText(value);
+  if (!raw) return "-";
+  let slice = raw;
+  if (slice.includes("T")) slice = slice.split("T")[1] || slice;
+  if (slice.includes(" ")) slice = slice.split(" ")[1] || slice;
+  if (slice.includes(".")) slice = slice.split(".")[0] || slice;
+  if (slice.includes(":")) return slice.slice(0, 5);
+  return slice;
+}
+
+type SelectType = {
+  id: string;
+  code: string;
+  desc: string;
+};
+
+type SelectOption = {
+  id: string;
+  code: string;
+  label: string;
+};
+
+type SelectTypeKey = keyof typeof SELECT_TYPE_IDS;
+
+function parseSelectTypes(raw: unknown): SelectType[] {
+  const rows = Array.isArray(raw) ? raw : [];
+  return rows
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      const id = normalizeText(row.id ?? row.selecttypeid);
+      const code = normalizeText(row.selecttypecode ?? row.code);
+      const desc = normalizeText(row.selecttypedesc ?? row.desc);
+      return id && code ? { id, code, desc } : null;
+    })
+    .filter(Boolean) as SelectType[];
+}
+
+function parseSelectOptions(raw: unknown): SelectOption[] {
+  const rows = Array.isArray(raw) ? raw : [];
+  return rows
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      const id = normalizeText(row.id ?? row.valueid);
+      const code = normalizeText(row.valuecode ?? row.code ?? row.value);
+      const desc = normalizeText(row.valuedesc ?? row.desc ?? row.label);
+      const label = desc || code;
+      return id && label ? { id, code, label } : null;
+    })
+    .filter(Boolean) as SelectOption[];
+}
+
+function resolveTypeId(key: SelectTypeKey, types: SelectType[]) {
+  const configured = SELECT_TYPE_IDS[key];
+  if (configured) return configured;
+  const code = SELECT_TYPE_CODES[key];
+  if (!code) return "";
+  return types.find((item) => normalizeCode(item.code) === normalizeCode(code))?.id ?? "";
+}
+
+function getOptionLabel(options: SelectOption[], value: string) {
+  if (!value) return "";
+  const trimmed = value.trim();
+  const byId = options.find((opt) => opt.id === trimmed);
+  if (byId) return byId.label;
+  const byCode = options.find((opt) => normalizeCode(opt.code) === normalizeCode(trimmed));
+  if (byCode) return byCode.label;
+  return trimmed;
+}
+
 type LastSelection = {
   date: string;
   dateLabel?: string;
   pickedDate?: string;
   hn?: string;
   hnLabel?: string;
-  vn?: string;
-  vnLabel?: string;
+  an?: string;
+  anLabel?: string;
+};
+
+type CasePrefill = {
+  caseId: string;
+  hn?: string;
+  an?: string;
+  date?: Date | null;
+};
+
+type CaseDetail = {
+  caseId: string;
+  hn: string;
+  an: string;
+  caseNo: string;
+  registerDate: string;
+  registerTime: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  caseDate: string;
+  timeFrom: string;
+  timeTo: string;
+  procedureRoom: string;
+  procedure: string;
+  physician: string;
+  note: string;
 };
 
 /** ---------------------------
@@ -317,9 +441,8 @@ function IconButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <button
       {...props}
-      className={`h-10 w-10 rounded-2xl border border-teal-400/20 bg-teal-500/10 hover:bg-teal-500/20 text-white/90 transition disabled:opacity-40 disabled:cursor-not-allowed ${
-        props.className || ""
-      }`}
+      className={`h-10 w-10 rounded-2xl border border-teal-400/20 bg-teal-500/10 hover:bg-teal-500/20 text-white/90 transition disabled:opacity-40 disabled:cursor-not-allowed ${props.className || ""
+        }`}
     />
   );
 }
@@ -1682,6 +1805,7 @@ function Thumb({ file }: { file: FileItem }) {
  *  --------------------------*/
 export default function Page() {
   const [mounted, setMounted] = useState(false);
+  const searchParams = useSearchParams();
 
   // Root handle + remember
   const [root, setRoot] = useState<DirHandle | null>(null);
@@ -1691,7 +1815,7 @@ export default function Page() {
   const [vcDir, setVcDir] = useState<DirHandle | null>(null);
   const [dateDir, setDateDir] = useState<DirHandle | null>(null);
   const [hnDir, setHnDir] = useState<DirHandle | null>(null);
-  const [vnDir, setVnDir] = useState<DirHandle | null>(null);
+  const [anDir, setAnDir] = useState<DirHandle | null>(null);
   const [originalDir, setOriginalDir] = useState<DirHandle | null>(null);
   const [chooseDir, setChooseDir] = useState<DirHandle | null>(null);
 
@@ -1701,18 +1825,29 @@ export default function Page() {
 
   const [pickedDate, setPickedDate] = useState<Date | null>(null);
   const dateKey = useMemo(() => (pickedDate ? makeDateKey(pickedDate) : ""), [pickedDate]);
+  const caseIdParam = searchParams.get("caseId") || "";
 
   const [hnInput, setHnInput] = useState("");
-  const [vnInput, setVnInput] = useState("");
+  const [anInput, setAnInput] = useState("");
+  const [casePrefill, setCasePrefill] = useState<CasePrefill | null>(null);
+  const casePrefillAppliedRef = useRef<string | null>(null);
+  const [caseDetail, setCaseDetail] = useState<CaseDetail | null>(null);
+  const [caseDetailCollapsed, setCaseDetailCollapsed] = useState(true);
+  const [procedureRoomOptions, setProcedureRoomOptions] = useState<SelectOption[]>([]);
+  const [procedureOptions, setProcedureOptions] = useState<SelectOption[]>([]);
+  const [mainProcedureOptions, setMainProcedureOptions] = useState<SelectOption[]>([]);
+  const [physicianOptions, setPhysicianOptions] = useState<SelectOption[]>([]);
+  const [caseOptionLoading, setCaseOptionLoading] = useState(false);
+  const [caseOptionError, setCaseOptionError] = useState<string | null>(null);
 
   // Dropdown options
   const [dateOptions, setDateOptions] = useState<Opt[]>([]);
   const [hnOptions, setHnOptions] = useState<Opt[]>([]);
-  const [vnOptions, setVnOptions] = useState<Opt[]>([]);
+  const [anOptions, setAnOptions] = useState<Opt[]>([]);
 
   const [dateSelected, setDateSelected] = useState<Opt | null>(null);
   const [hnSelected, setHnSelected] = useState<Opt | null>(null);
-  const [vnSelected, setVnSelected] = useState<Opt | null>(null);
+  const [anSelected, setAnSelected] = useState<Opt | null>(null);
 
   // Files + preview
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -1851,6 +1986,166 @@ export default function Page() {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    if (!caseIdParam) return;
+    setBuilderOpen(false);
+  }, [caseIdParam]);
+
+  useEffect(() => {
+    if (!caseIdParam) return;
+    setCaseDetailCollapsed(true);
+  }, [caseIdParam]);
+
+  useEffect(() => {
+    if (!caseIdParam) return;
+    let active = true;
+    const loadCaseOptions = async () => {
+      setCaseOptionLoading(true);
+      setCaseOptionError(null);
+      try {
+        let types: SelectType[] = [];
+        const needsTypes = Object.values(SELECT_TYPE_IDS).some((value) => !value);
+        if (needsTypes) {
+          const typeResponse = await getSelectTypes();
+          if ((typeResponse as { error?: unknown })?.error) {
+            throw new Error((typeResponse as { message?: string })?.message || "โหลดประเภทไม่สำเร็จ");
+          }
+          const typeRaw = (typeResponse as { data?: unknown })?.data ?? typeResponse;
+          types = parseSelectTypes(typeRaw);
+        }
+        const typeIds = {
+          procedureRoom: resolveTypeId("procedureRoom", types),
+          procedure: resolveTypeId("procedure", types),
+          mainProcedure: resolveTypeId("mainProcedure", types),
+          physician: resolveTypeId("physician", types),
+        };
+        const [roomRes, procedureRes, mainRes, physicianRes] = await Promise.all([
+          typeIds.procedureRoom ? getvaluebyselecttypeid(typeIds.procedureRoom) : Promise.resolve({ data: [] }),
+          typeIds.procedure ? getvaluebyselecttypeid(typeIds.procedure) : Promise.resolve({ data: [] }),
+          typeIds.mainProcedure ? getvaluebyselecttypeid(typeIds.mainProcedure) : Promise.resolve({ data: [] }),
+          typeIds.physician ? getvaluebyselecttypeid(typeIds.physician) : Promise.resolve({ data: [] }),
+        ]);
+        if (!active) return;
+        setProcedureRoomOptions(parseSelectOptions((roomRes as { data?: unknown })?.data ?? roomRes));
+        setProcedureOptions(parseSelectOptions((procedureRes as { data?: unknown })?.data ?? procedureRes));
+        setMainProcedureOptions(parseSelectOptions((mainRes as { data?: unknown })?.data ?? mainRes));
+        setPhysicianOptions(parseSelectOptions((physicianRes as { data?: unknown })?.data ?? physicianRes));
+      } catch (err: unknown) {
+        if (!active) return;
+        setCaseOptionError(err instanceof Error ? err.message : "โหลดชื่อไม่สำเร็จ");
+      } finally {
+        if (active) setCaseOptionLoading(false);
+      }
+    };
+    loadCaseOptions();
+    return () => {
+      active = false;
+    };
+  }, [caseIdParam]);
+
+  useEffect(() => {
+    if (!caseIdParam) {
+      setCaseDetail(null);
+      setCasePrefill(null);
+      return;
+    }
+    casePrefillAppliedRef.current = null;
+    let active = true;
+    (async () => {
+      const response = await getCasebyid(caseIdParam);
+      if (!active) return;
+      if ((response as { error?: unknown })?.error) {
+        alertErr("ดึงข้อมูลเคสไม่สำเร็จ", (response as { message?: string })?.message || "โปรดลองใหม่อีกครั้ง");
+        return;
+      }
+      const data = (response as { data?: unknown })?.data ?? response;
+      const row = data as Record<string, unknown> | null;
+      if (!row) return;
+      const hn = normalizeText(row.hn ?? row.HN ?? "");
+      const an = normalizeText(row.an ?? row.AN ?? "");
+      const registerDate = normalizeText(row.registerdate ?? row.registerDate ?? "");
+      const registerTime = normalizeText(row.registertime ?? row.registerTime ?? "");
+      const appointmentDate = normalizeText(row.appointmentdate ?? row.appointmentDate ?? "");
+      const appointmentTime = normalizeText(row.appointmenttime ?? row.appointmentTime ?? "");
+      const caseDate = normalizeText(row.casedate ?? row.caseDate ?? row.operationDate ?? "");
+      const timeFrom = normalizeText(row.casetimefrom ?? row.caseTimeFrom ?? "");
+      const timeTo = normalizeText(row.casetimeto ?? row.caseTimeTo ?? "");
+      const procedureRoom = normalizeText(
+        row.procedureroomid ??
+        row.procedureRoomId ??
+        row.procedureroomname ??
+        row.procedureRoomName ??
+        row.roomname ??
+        row.room ??
+        ""
+      );
+      const procedure = normalizeText(
+        row.mainprocedureid ??
+        row.mainProcedureId ??
+        row.mainprocedurename ??
+        row.mainProcedureName ??
+        row.procedurename ??
+        row.procedureName ??
+        row.procedure ??
+        row.caseType ??
+        ""
+      );
+      const physician = normalizeText(
+        row.physicians1id ??
+        row.physicians1Id ??
+        row.physicians1name ??
+        row.physicians1Name ??
+        row.physicianname ??
+        row.physicianName ??
+        row.doctorname ??
+        row.doctorName ??
+        row.doctor ??
+        row.physician ??
+        ""
+      );
+      const note = normalizeText(row.note ?? "");
+      const caseNo = normalizeText(row.casenumber ?? row.caseNumber ?? row.caseNo ?? "");
+      const date = parseApiDate(
+        row.casedate ??
+        row.caseDate ??
+        row.operationDate ??
+        row.appointmentdate ??
+        row.appointmentDate ??
+        row.registerdate ??
+        row.registerDate ??
+        row.date ??
+        row.createdate ??
+        row.createDate ??
+        row.createdAt
+      );
+      const prefill: CasePrefill = { caseId: caseIdParam, hn, an, date };
+      setCasePrefill(prefill);
+      setCaseDetail({
+        caseId: caseIdParam,
+        hn,
+        an,
+        caseNo,
+        registerDate,
+        registerTime,
+        appointmentDate,
+        appointmentTime,
+        caseDate,
+        timeFrom,
+        timeTo,
+        procedureRoom,
+        procedure,
+        physician,
+        note,
+      });
+      if (date) setPickedDate(date);
+      if (hn) setHnInput(hn);
+      if (an) setAnInput(an);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [caseIdParam]);
+
   const persistLastSelection = useCallback(() => {
     if (!dateSelected?.value) return;
     const payload: LastSelection = {
@@ -1859,11 +2154,11 @@ export default function Page() {
       pickedDate: pickedDate ? pickedDate.toISOString() : undefined,
       hn: hnSelected?.value,
       hnLabel: hnSelected?.label,
-      vn: vnSelected?.value,
-      vnLabel: vnSelected?.label,
+      an: anSelected?.value,
+      anLabel: anSelected?.label,
     };
     void idbSet(LAST_SELECTION_KEY, payload);
-  }, [dateSelected, hnSelected, pickedDate, vnSelected]);
+  }, [dateSelected, hnSelected, pickedDate, anSelected]);
 
   useEffect(() => {
     persistLastSelection();
@@ -2186,7 +2481,7 @@ export default function Page() {
     setVcDir(null);
     setDateDir(null);
     setHnDir(null);
-    setVnDir(null);
+    setAnDir(null);
     setOriginalDir(null);
     setChooseDir(null);
     setFiles([]);
@@ -2194,12 +2489,12 @@ export default function Page() {
     setPreviewUrl(null);
     setDateOptions([]);
     setHnOptions([]);
-    setVnOptions([]);
+    setAnOptions([]);
     setDateSelected(null);
     setHnSelected(null);
-    setVnSelected(null);
+    setAnSelected(null);
     setHnInput("");
-    setVnInput("");
+    setAnInput("");
     await idbDel("rootHandle");
     alertInfo("ตัดการเชื่อมต่อแล้ว");
   }, []);
@@ -2300,25 +2595,26 @@ export default function Page() {
     setHnOptions(opts);
   }, []);
 
-  const loadVNOptions = useCallback(async (h: DirHandle | null) => {
+  const loadANOptions = useCallback(async (h: DirHandle | null) => {
     if (!h) {
-      setVnOptions([]);
+      setAnOptions([]);
       return;
     }
     const names = await listDirs(h);
     const opts = names.map((x) => ({ value: x, label: x }));
-    setVnOptions(opts);
+    setAnOptions(opts);
   }, []);
 
   const selectDateFolder = useCallback(
-    async (opt: Opt | null, options?: { silent?: boolean }) => {
+    async (opt: Opt | null, options?: { silent?: boolean; create?: boolean }) => {
       const silent = options?.silent;
+      const create = options?.create;
       setDateSelected(opt);
       setHnSelected(null);
-      setVnSelected(null);
+      setAnSelected(null);
       setDateDir(null);
       setHnDir(null);
-      setVnDir(null);
+      setAnDir(null);
       setOriginalDir(null);
       setChooseDir(null);
       setFiles([]);
@@ -2327,9 +2623,16 @@ export default function Page() {
 
       if (!opt || !vcDir) return null;
       try {
-        const d = await vcDir.getDirectoryHandle(opt.value);
+        const d = await vcDir.getDirectoryHandle(opt.value, { create: Boolean(create) });
         setDateDir(d);
         await loadHNOptions(d);
+        if (create) {
+          const ds = await listDirs(vcDir);
+          const opts: Opt[] = ds
+            .filter((x) => /^\d{6}$/.test(x))
+            .map((k) => ({ value: k, label: `${k} — (พศ.)` }));
+          setDateOptions(opts);
+        }
         return d;
       } catch (e: any) {
         if (!silent) alertErr("เปิด Date Folder ไม่สำเร็จ", e?.message || String(e));
@@ -2344,24 +2647,25 @@ export default function Page() {
     const hn = hnInput.trim();
     if (!hn) return alertErr("กรอก HN ก่อน");
     try {
-      const h = await ensureDir(dateDir, `HN${hn}`);
+      const h = await ensureDir(dateDir, hn);
       setHnDir(h);
-      setHnSelected({ value: `HN${hn}`, label: `HN${hn}` });
+      setHnSelected({ value: hn, label: hn });
       await loadHNOptions(dateDir);
-      await loadVNOptions(h);
-      alertOk("สร้าง/เลือก HN แล้ว", `HN${hn}`);
+      await loadANOptions(h);
+      alertOk("สร้าง/เลือก HN แล้ว", hn);
     } catch (e: any) {
       alertErr("สร้าง HN ไม่สำเร็จ", e?.message || String(e));
     }
-  }, [dateDir, hnInput, loadHNOptions, loadVNOptions]);
+  }, [dateDir, hnInput, loadHNOptions, loadANOptions]);
 
   const selectHNFolder = useCallback(
-    async (opt: Opt | null, options?: { silent?: boolean }, parentDir?: DirHandle | null) => {
+    async (opt: Opt | null, options?: { silent?: boolean; create?: boolean }, parentDir?: DirHandle | null) => {
       const silent = options?.silent;
+      const create = options?.create;
       setHnSelected(opt);
-      setVnSelected(null);
+      setAnSelected(null);
       setHnDir(null);
-      setVnDir(null);
+      setAnDir(null);
       setOriginalDir(null);
       setChooseDir(null);
       setFiles([]);
@@ -2371,25 +2675,25 @@ export default function Page() {
       const baseDir = parentDir ?? dateDir;
       if (!opt || !baseDir) return null;
       try {
-        const h = await baseDir.getDirectoryHandle(opt.value);
+        const h = await baseDir.getDirectoryHandle(opt.value, { create: Boolean(create) });
         setHnDir(h);
-        await loadVNOptions(h);
+        await loadANOptions(h);
         return h;
       } catch (e: any) {
         if (!silent) alertErr("เปิด HN Folder ไม่สำเร็จ", e?.message || String(e));
         return null;
       }
     },
-    [dateDir, loadVNOptions]
+    [dateDir, loadANOptions]
   );
 
-  const createVN = useCallback(async () => {
+  const createAN = useCallback(async () => {
     if (!hnDir) return alertErr("ยังไม่มี HN Folder");
-    const vn = vnInput.trim();
-    if (!vn) return alertErr("กรอก VN ก่อน");
+    const an = anInput.trim();
+    if (!an) return alertErr("กรอก AN ก่อน");
     try {
-      const v = await ensureDir(hnDir, `VN${vn}`);
-      setVnDir(v);
+      const v = await ensureDir(hnDir, an);
+      setAnDir(v);
 
       // FIX bucket = original
       const orig = await ensureDir(v, "original");
@@ -2397,24 +2701,25 @@ export default function Page() {
       setOriginalDir(orig);
       setChooseDir(ch);
 
-      setVnSelected({ value: `VN${vn}`, label: `VN${vn}` });
-      await loadVNOptions(hnDir);
-      alertOk("สร้าง/เลือก VN แล้ว", `VN${vn}`);
+      setAnSelected({ value: an, label: an });
+      await loadANOptions(hnDir);
+      alertOk("สร้าง/เลือก AN แล้ว", an);
 
       // refresh file list
       const fl = await listFiles(orig);
       setFiles(fl);
       if (fl[0]) setPreviewKeepScroll(fl[0]);
     } catch (e: any) {
-      alertErr("สร้าง VN ไม่สำเร็จ", e?.message || String(e));
+      alertErr("สร้าง AN ไม่สำเร็จ", e?.message || String(e));
     }
-  }, [hnDir, vnInput, loadVNOptions]);
+  }, [hnDir, anInput, loadANOptions]);
 
-  const selectVNFolder = useCallback(
-    async (opt: Opt | null, options?: { silent?: boolean }, parentDir?: DirHandle | null) => {
+  const selectANFolder = useCallback(
+    async (opt: Opt | null, options?: { silent?: boolean; create?: boolean }, parentDir?: DirHandle | null) => {
       const silent = options?.silent;
-      setVnSelected(opt);
-      setVnDir(null);
+      const create = options?.create;
+      setAnSelected(opt);
+      setAnDir(null);
       setOriginalDir(null);
       setChooseDir(null);
       setFiles([]);
@@ -2423,8 +2728,8 @@ export default function Page() {
       const baseDir = parentDir ?? hnDir;
       if (!opt || !baseDir) return;
       try {
-        const v = await baseDir.getDirectoryHandle(opt.value);
-        setVnDir(v);
+        const v = await baseDir.getDirectoryHandle(opt.value, { create: Boolean(create) });
+        setAnDir(v);
 
         const orig = await ensureDir(v, "original");
         const ch = await ensureDir(v, "choose");
@@ -2436,7 +2741,7 @@ export default function Page() {
         if (fl[0]) setPreviewKeepScroll(fl[0]);
         return v;
       } catch (e: any) {
-        if (!silent) alertErr("เปิด VN ไม่สำเร็จ", e?.message || String(e));
+        if (!silent) alertErr("เปิด AN ไม่สำเร็จ", e?.message || String(e));
         return null;
       }
     },
@@ -2448,6 +2753,36 @@ export default function Page() {
     const fl = await listFiles(originalDir);
     setFiles(fl);
   }, [originalDir]);
+
+  const applyCasePrefill = useCallback(
+    async (prefill: CasePrefill) => {
+      if (!vcDir) return;
+      const date = prefill.date ?? null;
+      const dateValue = date ? makeDateKey(date) : "";
+      const dateLabel = date ? `${dateValue} — ${formatThaiBEDisplay(date)}` : dateValue;
+      const dateDir = dateValue
+        ? await selectDateFolder({ value: dateValue, label: dateLabel }, { silent: true, create: true })
+        : null;
+      if (prefill.hn) {
+        const hnValue = prefill.hn;
+        const hnDir = await selectHNFolder(
+          { value: hnValue, label: hnValue },
+          { silent: true, create: true },
+          dateDir ?? undefined
+        );
+        if (prefill.an) {
+          const anValue = prefill.an;
+          await selectANFolder(
+            { value: anValue, label: anValue },
+            { silent: true, create: true },
+            hnDir ?? undefined
+          );
+        }
+      }
+      await refreshFiles();
+    },
+    [vcDir, selectDateFolder, selectHNFolder, selectANFolder, refreshFiles]
+  );
 
   const restoreSelectionVcRef = useRef<DirHandle | null>(null);
 
@@ -2481,9 +2816,9 @@ export default function Page() {
             { silent: true },
             restoredDateDir ?? undefined
           );
-          if (saved.vn) {
-            await selectVNFolder(
-              { value: saved.vn, label: saved.vnLabel || saved.vn },
+          if (saved.an) {
+            await selectANFolder(
+              { value: saved.an, label: saved.anLabel || saved.an },
               { silent: true },
               restoredHnDir ?? undefined
             );
@@ -2497,7 +2832,14 @@ export default function Page() {
     return () => {
       cancelled = true;
     };
-  }, [vcDir, selectDateFolder, selectHNFolder, selectVNFolder, refreshFiles]);
+  }, [vcDir, selectDateFolder, selectHNFolder, selectANFolder, refreshFiles]);
+
+  useEffect(() => {
+    if (!casePrefill || !vcDir) return;
+    if (casePrefillAppliedRef.current === casePrefill.caseId) return;
+    casePrefillAppliedRef.current = casePrefill.caseId;
+    void applyCasePrefill(casePrefill);
+  }, [casePrefill, vcDir, applyCasePrefill]);
 
   /** ----- current path click: copy + refresh + scroll ----- */
   const filesPanelRef = useRef<HTMLDivElement | null>(null);
@@ -2509,10 +2851,10 @@ export default function Page() {
     const parts: string[] = [];
     if (dateSelected?.value) parts.push(dateSelected.value);
     if (hnSelected?.value) parts.push(hnSelected.value);
-    if (vnSelected?.value) parts.push(vnSelected.value);
+    if (anSelected?.value) parts.push(anSelected.value);
     // FIX bucket
     return `VideoCapture/${parts.join(" / ")}/original`;
-  }, [dateSelected, hnSelected, vnSelected]);
+  }, [dateSelected, hnSelected, anSelected]);
 
   const onClickPath = useCallback(async () => {
     try {
@@ -2597,11 +2939,11 @@ export default function Page() {
   }, [deviceSelected, stopStream, applyCameraAdjust, camBrightness, camSharpness, refreshFiles]);
 
   /** ----- Save helpers (original only) ----- */
-  const canSave = !!originalDir && !!dateSelected && !!hnSelected && !!vnSelected;
+  const canSave = !!originalDir && !!dateSelected && !!hnSelected && !!anSelected;
 
   const savePhoto = useCallback(async () => {
     if (!originalDir) return alertErr("ยังไม่มีโฟลเดอร์ original");
-    if (!canSave) return alertErr("ต้องเลือก Date/HN/VN ก่อนบันทึก");
+    if (!canSave) return alertErr("ต้องเลือก Date/HN/AN ก่อนบันทึก");
     if (!videoRef.current) return;
 
     try {
@@ -2639,7 +2981,7 @@ export default function Page() {
   const startVideo = useCallback(async () => {
     if (videoCountdown !== null) return;
     if (!originalDir) return alertErr("ยังไม่มีโฟลเดอร์ original");
-    if (!canSave) return alertErr("ต้องเลือก Date/HN/VN ก่อนบันทึก");
+    if (!canSave) return alertErr("ต้องเลือก Date/HN/AN ก่อนบันทึก");
     const s = streamRef.current;
     if (!s) return alertErr("ยังไม่ได้เปิดกล้อง");
 
@@ -2782,18 +3124,18 @@ export default function Page() {
   );
 
   const openPicker = useCallback(() => {
-    if (!originalDir || !chooseDir) return alertErr("ยังไม่มี original/choose", "เลือก Date/HN/VN ก่อน");
+    if (!originalDir || !chooseDir) return alertErr("ยังไม่มี original/choose", "เลือก Date/HN/AN ก่อน");
     stopStream();
     setPickerOpen(true);
   }, [originalDir, chooseDir, stopStream]);
 
   const exportReport = useCallback(async () => {
     if (!chooseDir) {
-      alertErr("ยังไม่มีโฟลเดอร์ choose", "เลือก Date/HN/VN ก่อน");
+      alertErr("ยังไม่มีโฟลเดอร์ choose", "เลือก Date/HN/AN ก่อน");
       return;
     }
-    if (!dateSelected || !hnSelected || !vnSelected) {
-      alertErr("ข้อมูลไม่ครบ", "ต้องเลือก Date/HN/VN ก่อน");
+    if (!dateSelected || !hnSelected || !anSelected) {
+      alertErr("ข้อมูลไม่ครบ", "ต้องเลือก Date/HN/AN ก่อน");
       return;
     }
     const reportWindow = window.open("", "_blank");
@@ -2840,7 +3182,7 @@ export default function Page() {
       const payload = {
         date: dateSelected.value,
         hn: hnSelected.value,
-        vn: vnSelected.value,
+        an: anSelected.value,
         images,
       };
 
@@ -2856,7 +3198,7 @@ export default function Page() {
       reportWindow.close();
       alertErr("ออกรีพอร์ทไม่สำเร็จ", e?.message || String(e));
     }
-  }, [chooseDir, dateSelected, hnSelected, vnSelected]);
+  }, [chooseDir, dateSelected, hnSelected, anSelected]);
 
   const openEditor = useCallback((f: FileItem) => {
     setEditorFile(f);
@@ -2882,9 +3224,34 @@ export default function Page() {
   const builderPathHint = useMemo(() => {
     const d = dateSelected?.value ? `VideoCapture/${dateSelected.value}` : "VideoCapture/(ยังไม่มี date)";
     const h = hnSelected?.value ? `${d}/${hnSelected.value}` : `${d}/(ยังไม่มี HN)`;
-    const v = vnSelected?.value ? `${h}/${vnSelected.value}` : `${h}/(ยังไม่มี VN)`;
+    const v = anSelected?.value ? `${h}/${anSelected.value}` : `${h}/(ยังไม่มี AN)`;
     return `${v}/original`;
-  }, [dateSelected, hnSelected, vnSelected]);
+  }, [dateSelected, hnSelected, anSelected]);
+
+  const showCaseDetails = Boolean(caseIdParam);
+  const caseFolderReady = Boolean(originalDir && chooseDir);
+  const caseDetailView = {
+    caseId: caseDetail?.caseId || caseIdParam || "-",
+    hn: caseDetail?.hn || hnInput || "-",
+    an: caseDetail?.an || anInput || "-",
+    caseNo: caseDetail?.caseNo || "-",
+    registerDate: formatDateDisplay(caseDetail?.registerDate),
+    registerTime: formatTimeDisplay(caseDetail?.registerTime),
+    appointmentDate: formatDateDisplay(caseDetail?.appointmentDate),
+    appointmentTime: formatTimeDisplay(caseDetail?.appointmentTime),
+    caseDate: formatDateDisplay(caseDetail?.caseDate || pickedDate),
+    timeFrom: formatTimeDisplay(caseDetail?.timeFrom),
+    timeTo: formatTimeDisplay(caseDetail?.timeTo),
+    procedureRoom:
+      getOptionLabel(procedureRoomOptions, caseDetail?.procedureRoom || "") || caseDetail?.procedureRoom || "-",
+    procedure:
+      getOptionLabel(mainProcedureOptions, caseDetail?.procedure || "") ||
+      getOptionLabel(procedureOptions, caseDetail?.procedure || "") ||
+      caseDetail?.procedure ||
+      "-",
+    physician: getOptionLabel(physicianOptions, caseDetail?.physician || "") || caseDetail?.physician || "-",
+    note: caseDetail?.note || "-",
+  };
 
   const renderCameraPreviewSection = () => (
     <div className="grid grid-cols-12 gap-4 min-h-0">
@@ -2961,7 +3328,7 @@ export default function Page() {
           </div>
 
           <div className="mt-3 text-[11px] text-white/45">
-            ต้องเลือก Date/HN/VN ก่อนบันทึก และจะบันทึกลง <span className="text-white/70">original</span> เท่านั้น
+            ต้องเลือก Date/HN/AN ก่อนบันทึก และจะบันทึกลง <span className="text-white/70">original</span> เท่านั้น
           </div>
         </div>
       </GlassCard>
@@ -3105,8 +3472,307 @@ export default function Page() {
       <div className="relative h-full w-full p-5">
         {/* Top bar */}
         <div className="flex items-center justify-between gap-4 mb-4">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.55)] px-5 py-4">
-            <div className="font-semibold text-5xl">Intraview</div>
+          <div className="rounded-3xl border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.55)] px-5 py-4 w-full">
+            {showCaseDetails ? (
+              <GlassCard
+                title="รายละเอียดเคส"
+                right={
+                  <div className="flex items-center gap-2">
+                    <PillButton onClick={() => setCaseDetailCollapsed((prev) => !prev)}>
+                      {caseDetailCollapsed ? "ขยาย" : "ย่อ"}
+                    </PillButton>
+                    <PillButton onClick={openPicker} disabled={!caseFolderReady}>
+                      เลือก/จัดการรูป
+                    </PillButton>
+                    <PillButton onClick={refreshFiles} disabled={!originalDir}>
+                      Refresh Files
+                    </PillButton>
+                  </div>
+                }
+              >
+                {caseOptionLoading && (
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-white/50">กำลังโหลดชื่อ...</div>
+                )}
+                {caseOptionError && <div className="mb-2 text-[10px] text-rose-300">{caseOptionError}</div>}
+
+                {caseDetailCollapsed ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-7">
+                      <div>
+                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">HN</div>
+                        <div className="text-[11px] text-white/90">{caseDetailView.hn}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">AN</div>
+                        <div className="text-[11px] text-white/90">{caseDetailView.an}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Case Date</div>
+                        <div className="text-[11px] text-white/90">{caseDetailView.caseDate}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Time</div>
+                        <div className="text-[11px] text-white/90">
+                          {caseDetailView.timeFrom} - {caseDetailView.timeTo}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Room</div>
+                        <div className="text-[11px] text-white/90">{caseDetailView.procedureRoom}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Procedure</div>
+                        <div className="text-[11px] text-white/90">{caseDetailView.procedure}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Physician</div>
+                        <div className="text-[11px] text-white/90">{caseDetailView.physician}</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-12 gap-4">
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Case ID</div>
+                      <div className="text-sm text-white/90">{caseDetailView.caseId}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">HN</div>
+                      <div className="text-sm text-white/90">{caseDetailView.hn}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">AN</div>
+                      <div className="text-sm text-white/90">{caseDetailView.an}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Case No</div>
+                      <div className="text-sm text-white/90">{caseDetailView.caseNo}</div>
+                    </div>
+
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Case Date</div>
+                      <div className="text-sm text-white/90">{caseDetailView.caseDate}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Time From</div>
+                      <div className="text-sm text-white/90">{caseDetailView.timeFrom}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Time To</div>
+                      <div className="text-sm text-white/90">{caseDetailView.timeTo}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Register Date</div>
+                      <div className="text-sm text-white/90">{caseDetailView.registerDate}</div>
+                    </div>
+
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Register Time</div>
+                      <div className="text-sm text-white/90">{caseDetailView.registerTime}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Appointment Date</div>
+                      <div className="text-sm text-white/90">{caseDetailView.appointmentDate}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Appointment Time</div>
+                      <div className="text-sm text-white/90">{caseDetailView.appointmentTime}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-3">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Room</div>
+                      <div className="text-sm text-white/90">{caseDetailView.procedureRoom}</div>
+                    </div>
+
+                    <div className="col-span-12 md:col-span-6">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Procedure</div>
+                      <div className="text-sm text-white/90">{caseDetailView.procedure}</div>
+                    </div>
+                    <div className="col-span-12 md:col-span-6">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Physician</div>
+                      <div className="text-sm text-white/90">{caseDetailView.physician}</div>
+                    </div>
+                    <div className="col-span-12">
+                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Note</div>
+                      <div className="text-sm text-white/90">{caseDetailView.note}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* <div
+                  className={`border border-white/10 bg-white/[0.04] ${caseDetailCollapsed ? "mt-3 rounded-xl px-3 py-2" : "mt-4 rounded-2xl px-4 py-3"
+                    }`}
+                >
+                  <div className={`${caseDetailCollapsed ? "text-[9px]" : "text-[11px]"} uppercase tracking-[0.2em] text-white/50`}>
+                    Folder
+                  </div>
+                  <div className={`mt-1 break-all ${caseDetailCollapsed ? "text-[11px] text-white/75" : "text-sm text-white/80"}`}>
+                    {builderPathHint}
+                  </div>
+                  {!caseFolderReady && (
+                    <div className={`mt-2 text-amber-200/80 ${caseDetailCollapsed ? "text-[9px]" : "text-[11px]"}`}>
+                      ยังไม่พร้อมใช้งาน เลือก Root ก่อน
+                    </div>
+                  )}
+                </div> */}
+              </GlassCard>
+            ) : (
+              <GlassCard
+                title="Folder Builder"
+                right={
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs text-white/55">Save bucket: <span className="text-white/85">original</span></div>
+                    <PillButton onClick={() => setBuilderOpen((v) => !v)}>
+                      {builderOpen ? "พับ" : "ขยาย"}
+                    </PillButton>
+                  </div>
+                }
+                className="overflow-visible"
+              >
+                {builderOpen && (
+                  <div className="grid grid-cols-12 gap-4 overflow-visible">
+                    {/* Date */}
+                    <div className="col-span-12 lg:col-span-5 overflow-visible">
+                      <div className="text-xs text-white/60 mb-2">Date (พ.ศ.)</div>
+                      <div className="grid grid-cols-[1fr_auto] gap-2">
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                          <div className="text-[11px] text-white/50">เลือกวันที่</div>
+                          <div className="mt-1 flex items-center justify-center gap-2">
+                            <div className="text-sm text-white/90 w-full">{beDateLabel}</div>
+                            <DatePicker
+                              selected={pickedDate}
+                              onChange={(d) => setPickedDate(d)}
+                              customInput={<PillButton className="h-9 px-3">Pick</PillButton>}
+                              popperPlacement="bottom-end"
+                              portalId="react-datepicker-portal"
+                              dateFormat="yyyy-MM-dd"
+                            />
+                          </div>
+                          <div className="text-[11px] text-white/45 mt-1">{pickedDate ? `${pickedDate.toISOString().slice(0, 10)} → folder: ${dateKey}` : "ยังไม่เลือก"}</div>
+                        </div>
+
+                        <PillButton onClick={createOrSelectDate} disabled={!vcDir || !pickedDate} className="h-full">
+                          ใช้
+                        </PillButton>
+                      </div>
+
+                      <div className="mt-3 overflow-visible">
+                        <Select
+                          value={dateSelected}
+                          onChange={(v) => selectDateFolder(v as any)}
+                          options={dateOptions.map((o) => {
+                            // if selected date exists, show proper label
+                            if (pickedDate && o.value === dateKey) return { value: o.value, label: `${o.value} — ${formatThaiBEDisplay(pickedDate)}` };
+                            return o;
+                          })}
+                          placeholder="ค้นหา/เลือก Date folder"
+                          isClearable
+                          menuPortalTarget={document.body}
+                          menuPosition="fixed"
+                          styles={selectStyles}
+                          theme={selectTheme}
+                        />
+                        <div className="text-[11px] text-white/45 mt-2">
+                          Example: <span className="text-white/70">VideoCapture/{dateSelected?.value || "ddMMyy"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* HN */}
+                    <div className="col-span-12 lg:col-span-3 overflow-visible">
+                      <div className="text-xs text-white/60 mb-2">HN</div>
+                      <div className="grid grid-cols-[1fr_auto] gap-2">
+                        <input
+                          value={hnInput}
+                          onChange={(e) => setHnInput(e.target.value)}
+                          placeholder="เช่น 112222"
+                          className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white/90 outline-none"
+                        />
+                        <PillButton onClick={createHN} disabled={!dateDir}>
+                          Create
+                        </PillButton>
+                      </div>
+
+                      <div className="mt-3 overflow-visible">
+                        <Select
+                          value={hnSelected}
+                          onChange={(v) => selectHNFolder(v as any)}
+                          options={hnOptions}
+                          placeholder="ค้นหา/เลือก HN"
+                          isClearable
+                          menuPortalTarget={document.body}
+                          menuPosition="fixed"
+                          styles={selectStyles}
+                          theme={selectTheme}
+                        />
+                      </div>
+                    </div>
+
+                    {/* AN (bucket fixed original) */}
+                    <div className="col-span-12 lg:col-span-4 overflow-visible">
+                      <div className="text-xs text-white/60 mb-2">AN (Save: original)</div>
+                      <div className="grid grid-cols-[1fr_auto] gap-2">
+                        <input
+                          value={anInput}
+                          onChange={(e) => setAnInput(e.target.value)}
+                          placeholder="เช่น 112222"
+                          className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white/90 outline-none"
+                        />
+                        <PillButton onClick={createAN} disabled={!hnDir}>
+                          Create
+                        </PillButton>
+                      </div>
+
+                      <div className="mt-3 overflow-visible grid grid-cols-[1fr_auto] gap-2">
+                        <div className="overflow-visible">
+                          <Select
+                            value={anSelected}
+                            onChange={(v) => selectANFolder(v as any)}
+                            options={anOptions}
+                            placeholder="ค้นหา/เลือก AN"
+                            isClearable
+                            menuPortalTarget={document.body}
+                            menuPosition="fixed"
+                            styles={selectStyles}
+                            theme={selectTheme}
+                          />
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 flex items-center text-sm text-white/80">
+                          original
+                        </div>
+                      </div>
+
+                      <div className="mt-2 text-[11px] text-white/50">
+                        Current path:{" "}
+                        <button onClick={onClickPath} className="underline text-teal-200/70 hover:text-teal-100 break-all">
+                          {builderPathHint}
+                        </button>
+                      </div>
+
+                      <div className="mt-3 flex gap-2">
+                        <PillButton onClick={openPicker} disabled={!originalDir || !chooseDir}>
+                          รีพอร์ท/เลือกจัดการรูป
+                        </PillButton>
+                        <PillButton onClick={refreshFiles} disabled={!originalDir}>
+                          Refresh Files
+                        </PillButton>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!builderOpen && (
+                  <div className="text-sm text-white/60 flex items-center justify-between gap-3">
+                    <div className="truncate">
+                      {builderPathHint}{" "}
+                      <button onClick={onClickPath} className="underline text-teal-200/70 hover:text-teal-100">
+                        (คลิกเพื่อคัดลอก/รีเฟรช)
+                      </button>
+                    </div>
+                    <div className="text-xs text-white/45">Builder ถูกพับเพื่อเน้น Camera/Preview</div>
+                  </div>
+                )}
+              </GlassCard>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -3126,163 +3792,7 @@ export default function Page() {
         <div className="h-[calc(100%-88px)] grid grid-cols-[1fr_auto] gap-4 min-w-0">
           {/* MAIN */}
           <div className="min-w-0 h-full grid grid-rows-[auto_1fr] gap-4">
-            {/* Folder Builder (collapsible, smaller than camera/preview) */}
-            <GlassCard
-              title="Folder Builder"
-              right={
-                <div className="flex items-center gap-2">
-                  <div className="text-xs text-white/55">Save bucket: <span className="text-white/85">original</span></div>
-                  <PillButton onClick={() => setBuilderOpen((v) => !v)}>
-                    {builderOpen ? "พับ" : "ขยาย"}
-                  </PillButton>
-                </div>
-              }
-              className="overflow-visible"
-            >
-              {builderOpen && (
-                <div className="grid grid-cols-12 gap-4 overflow-visible">
-                  {/* Date */}
-                  <div className="col-span-12 lg:col-span-5 overflow-visible">
-                    <div className="text-xs text-white/60 mb-2">Date (พ.ศ.)</div>
-                    <div className="grid grid-cols-[1fr_auto] gap-2">
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
-                        <div className="text-[11px] text-white/50">เลือกวันที่</div>
-                        <div className="mt-1 flex items-center justify-center gap-2">
-                          <div className="text-sm text-white/90 w-full">{beDateLabel}</div>
-                          <DatePicker
-                            selected={pickedDate}
-                            onChange={(d) => setPickedDate(d)}
-                            customInput={<PillButton className="h-9 px-3">Pick</PillButton>}
-                            popperPlacement="bottom-end"
-                            portalId="react-datepicker-portal"
-                            dateFormat="yyyy-MM-dd"
-                          />
-                        </div>
-                        <div className="text-[11px] text-white/45 mt-1">{pickedDate ? `${pickedDate.toISOString().slice(0, 10)} → folder: ${dateKey}` : "ยังไม่เลือก"}</div>
-                      </div>
 
-                      <PillButton onClick={createOrSelectDate} disabled={!vcDir || !pickedDate} className="h-full">
-                        ใช้
-                      </PillButton>
-                    </div>
-
-                    <div className="mt-3 overflow-visible">
-                      <Select
-                        value={dateSelected}
-                        onChange={(v) => selectDateFolder(v as any)}
-                        options={dateOptions.map((o) => {
-                          // if selected date exists, show proper label
-                          if (pickedDate && o.value === dateKey) return { value: o.value, label: `${o.value} — ${formatThaiBEDisplay(pickedDate)}` };
-                          return o;
-                        })}
-                        placeholder="ค้นหา/เลือก Date folder"
-                        isClearable
-                        menuPortalTarget={document.body}
-                        menuPosition="fixed"
-                        styles={selectStyles}
-                        theme={selectTheme}
-                      />
-                      <div className="text-[11px] text-white/45 mt-2">
-                        Example: <span className="text-white/70">VideoCapture/{dateSelected?.value || "ddMMyy"}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* HN */}
-                  <div className="col-span-12 lg:col-span-3 overflow-visible">
-                    <div className="text-xs text-white/60 mb-2">HN</div>
-                    <div className="grid grid-cols-[1fr_auto] gap-2">
-                      <input
-                        value={hnInput}
-                        onChange={(e) => setHnInput(e.target.value)}
-                        placeholder="เช่น 112222"
-                        className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white/90 outline-none"
-                      />
-                      <PillButton onClick={createHN} disabled={!dateDir}>
-                        Create
-                      </PillButton>
-                    </div>
-
-                    <div className="mt-3 overflow-visible">
-                      <Select
-                        value={hnSelected}
-                        onChange={(v) => selectHNFolder(v as any)}
-                        options={hnOptions}
-                        placeholder="ค้นหา/เลือก HN"
-                        isClearable
-                        menuPortalTarget={document.body}
-                        menuPosition="fixed"
-                        styles={selectStyles}
-                        theme={selectTheme}
-                      />
-                    </div>
-                  </div>
-
-                  {/* VN (bucket fixed original) */}
-                  <div className="col-span-12 lg:col-span-4 overflow-visible">
-                    <div className="text-xs text-white/60 mb-2">VN (Save: original)</div>
-                    <div className="grid grid-cols-[1fr_auto] gap-2">
-                      <input
-                        value={vnInput}
-                        onChange={(e) => setVnInput(e.target.value)}
-                        placeholder="เช่น 112222"
-                        className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white/90 outline-none"
-                      />
-                      <PillButton onClick={createVN} disabled={!hnDir}>
-                        Create
-                      </PillButton>
-                    </div>
-
-                    <div className="mt-3 overflow-visible grid grid-cols-[1fr_auto] gap-2">
-                      <div className="overflow-visible">
-                        <Select
-                          value={vnSelected}
-                          onChange={(v) => selectVNFolder(v as any)}
-                          options={vnOptions}
-                          placeholder="ค้นหา/เลือก VN"
-                          isClearable
-                          menuPortalTarget={document.body}
-                          menuPosition="fixed"
-                          styles={selectStyles}
-                          theme={selectTheme}
-                        />
-                      </div>
-                      <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 flex items-center text-sm text-white/80">
-                        original
-                      </div>
-                    </div>
-
-                    <div className="mt-2 text-[11px] text-white/50">
-                      Current path:{" "}
-                      <button onClick={onClickPath} className="underline text-teal-200/70 hover:text-teal-100 break-all">
-                        {builderPathHint}
-                      </button>
-                    </div>
-
-                    <div className="mt-3 flex gap-2">
-                      <PillButton onClick={openPicker} disabled={!originalDir || !chooseDir}>
-                        รีพอร์ท/เลือกจัดการรูป
-                      </PillButton>
-                      <PillButton onClick={refreshFiles} disabled={!originalDir}>
-                        Refresh Files
-                      </PillButton>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!builderOpen && (
-                <div className="text-sm text-white/60 flex items-center justify-between gap-3">
-                  <div className="truncate">
-                    {builderPathHint}{" "}
-                    <button onClick={onClickPath} className="underline text-teal-200/70 hover:text-teal-100">
-                      (คลิกเพื่อคัดลอก/รีเฟรช)
-                    </button>
-                  </div>
-                  <div className="text-xs text-white/45">Builder ถูกพับเพื่อเน้น Camera/Preview</div>
-                </div>
-              )}
-            </GlassCard>
 
             {renderCameraPreviewSection()}
           </div>

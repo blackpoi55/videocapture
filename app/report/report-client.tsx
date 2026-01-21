@@ -13,7 +13,7 @@ type ReportImage = {
 type ReportPayload = {
   date: string;
   hn: string;
-  vn: string;
+  an: string;
   images: ReportImage[];
 };
 
@@ -217,20 +217,20 @@ export default function ReportClient() {
   );
   const totalPages = useMemo(() => 2 + extraPages.length, [extraPages.length]);
 
-  const vn = data?.vn || "000000";
+  const an = data?.an || "000000";
   const reportId = useMemo(() => {
     if (!printedAt) {
-      return `IV-${vn}-`;
+      return `IV-${an}-`;
     }
     const dateStamp = `${printedAt.getFullYear().toString().slice(-2)}${String(
       printedAt.getMonth() + 1
     ).padStart(2, "0")}${String(printedAt.getDate()).padStart(2, "0")}`;
-    return `IV-${vn}-${dateStamp}`;
-  }, [printedAt, vn]);
+    return `IV-${an}-${dateStamp}`;
+  }, [printedAt, an]);
 
   const safeDate = data?.date || "-";
   const safeHN = data?.hn || "-";
-  const safeVN = data?.vn || "-";
+  const safeAN = data?.an || "-";
   const printStamp = useMemo(
     () => (printedAt ? printedAt.toLocaleString("th-TH") : "-"),
     [printedAt]
@@ -362,7 +362,7 @@ export default function ReportClient() {
             </div>
             <div className="grid-3">
               <Field label="HN" value={safeHN} />
-              <Field label="VN" value={safeVN} />
+              <Field label="AN" value={safeAN} />
               <Field label="วันที่ตรวจ" value={safeDate} />
               <Field label="ชื่อผู้ป่วย" value="นางสาวกุลธิดา กุลชัย" />
               <Field label="อายุ" value="34 ปี" />

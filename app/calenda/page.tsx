@@ -1101,34 +1101,36 @@ export default function Page() {
     };
 
     const derivedAge = caseForm.patient?.age || (caseForm.patient?.dob ? calculateAgeFromDob(caseForm.patient.dob) : "");
-    const payload: Record<string, string | null> = {
-      hn: caseForm.hn.trim() || null,
-      age: derivedAge || null,
-      registerdate: reg.registerDate || null,
-      registertime: reg.registerTime || null,
-      appointmentdate: reg.appointmentDate || null,
-      appointmenttime: reg.appointmentTime || null,
-      casedate: reg.operationDate || null,
-      casetimefrom: reg.timeFrom || null,
-      casetimeto: reg.timeTo || null,
-      casenumber: reg.caseNo || null,
-      procedureroomid: caseForm.procedure.room || null,
-      mainprocedureid: caseForm.procedure.mainProcedure || caseForm.procedure.procedure || null,
-      financialid: caseForm.procedure.financial || null,
-      indicationid: caseForm.procedure.indication || null,
-      rapidtestresultid: caseForm.procedure.rapid || null,
-      histopathologyid: caseForm.procedure.histopath || null,
-      subprocedureid: caseForm.procedure.sub || null,
-      patienttypeopdid: caseForm.procedure.caseType || null,
-      anesthesiamethodid: caseForm.procedure.anesthe || null,
-      anesthetistid: caseForm.procedure.anestheAssist || null,
-      physicians1id: caseForm.physician.physician || null,
-      nurse1id: caseForm.physician.nurse1 || null,
-      nurse2id: caseForm.physician.nurse2 || null,
-      staff1id: caseForm.physician.staff1 || null,
-      staff2id: caseForm.physician.staff2 || null,
-      prediagnosisdx1id: caseForm.physician.dx1 || caseForm.physician.preDiagnosis || null,
-      prediagnosisdx2id: caseForm.physician.dx2 || null,
+    const payloadValue = (value?: string | null) => (value ? value : "");
+    const payload: Record<string, string> = {
+      hn: payloadValue(caseForm.hn.trim()),
+      an: payloadValue(caseForm.patient?.an || ""),
+      age: payloadValue(derivedAge),
+      registerdate: payloadValue(reg.registerDate),
+      registertime: payloadValue(reg.registerTime),
+      appointmentdate: payloadValue(reg.appointmentDate),
+      appointmenttime: payloadValue(reg.appointmentTime),
+      casedate: payloadValue(reg.operationDate),
+      casetimefrom: payloadValue(reg.timeFrom),
+      casetimeto: payloadValue(reg.timeTo),
+      casenumber: payloadValue(reg.caseNo),
+      procedureroomid: payloadValue(caseForm.procedure.room),
+      mainprocedureid: payloadValue(caseForm.procedure.mainProcedure || caseForm.procedure.procedure),
+      financialid: payloadValue(caseForm.procedure.financial),
+      indicationid: payloadValue(caseForm.procedure.indication),
+      rapidtestresultid: payloadValue(caseForm.procedure.rapid),
+      histopathologyid: payloadValue(caseForm.procedure.histopath),
+      subprocedureid: payloadValue(caseForm.procedure.sub),
+      patienttypeopdid: payloadValue(caseForm.procedure.caseType),
+      anesthesiamethodid: payloadValue(caseForm.procedure.anesthe),
+      anesthetistid: payloadValue(caseForm.procedure.anestheAssist),
+      physicians1id: payloadValue(caseForm.physician.physician),
+      nurse1id: payloadValue(caseForm.physician.nurse1),
+      nurse2id: payloadValue(caseForm.physician.nurse2),
+      staff1id: payloadValue(caseForm.physician.staff1),
+      staff2id: payloadValue(caseForm.physician.staff2),
+      prediagnosisdx1id: payloadValue(caseForm.physician.dx1 || caseForm.physician.preDiagnosis),
+      prediagnosisdx2id: payloadValue(caseForm.physician.dx2),
     };
 
     const response =
@@ -1268,6 +1270,7 @@ export default function Page() {
     // const caseNo = caseForm.registration.caseNo.trim();
     // if (caseNo) params.set("caseNo", caseNo);
     const query = params.toString();
+    console.log(query)
     router.push(query ? `/?${query}` : "/");
   };
 
@@ -1569,7 +1572,7 @@ export default function Page() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  type="button" 
+                  type="button"
                   onClick={handleScopeRedirect}
                   className="cursor-pointer rounded-full border border-blue-200 bg-blue-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-700 hover:border-blue-300 hover:bg-blue-500/20"
                 >
