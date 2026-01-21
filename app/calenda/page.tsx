@@ -19,6 +19,7 @@ import {
 import { th } from "date-fns/locale/th";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import Swal from "sweetalert2";
+import { useRouter } from "next/navigation";
 import { getbyHN, getSelectTypes, getvaluebyselecttypeid, postCalendagetdata, postCalendarCase, putCalendarCase } from "@/action/api";
 import { SELECT_TYPE_CODES, SELECT_TYPE_IDS } from "@/config";
 
@@ -308,7 +309,17 @@ const toCaseItems = (payload: unknown): CaseItem[] => {
       row.timefrom,
       "09:00"
     );
-    const doctor = String(row.doctor ?? row.physician ?? row.staff ?? row.doctorName ?? "").trim();
+    const doctor = String(
+      row.physicians1id ??
+      row.physicians1Id ??
+      row.physicianid ??
+      row.physicianId ??
+      row.doctor ??
+      row.physician ??
+      row.staff ??
+      row.doctorName ??
+      ""
+    ).trim();
     const camera = String(row.camera ?? row.room ?? row.cameraName ?? "").trim();
     const procedure = String(row.procedure ?? row.mainProcedure ?? row.caseType ?? row.service ?? "").trim();
     const status = ensureStatus(row.casestatusid ?? row.caseStatusId ?? row.status ?? row.caseStatus ?? row.state);
@@ -563,7 +574,7 @@ const toCalendarEvent = (item: CaseItem): BigCalendarEvent => {
   };
   return {
     id: item.id,
-    title: `${item.patient} · ${item.camera}`,
+    title: `${item.patient} · ${item.camera} · ${item.doctor}`,
     start,
     end: addHours(start, 1),
     patient: item.patient,
@@ -589,6 +600,7 @@ const formatThaiDisplay = (value: string) => {
 };
 
 export default function Page() {
+  const router = useRouter();
   const today = new Date();
   const [calendarDate, setCalendarDate] = useState<Date>(today);
   const [filterDate, setFilterDate] = useState<string>(isoFromDate(today));
@@ -1077,7 +1089,7 @@ export default function Page() {
       (editingEventId && monthEvents.find((event) => event.id === editingEventId)?.status) || "Monitoring";
     const nextEvent: BigCalendarEvent = {
       id: editingEventId || `case-${Date.now()}`,
-      title: `${patientName} · ${roomLabel}`,
+      title: `${patientName} · ${roomLabel} · ${physicianLabel}`,
       start,
       end,
       patient: patientName,
@@ -1197,10 +1209,9 @@ export default function Page() {
   const isWeekActive = rangeFrom === weekFromIso && rangeTo === weekToIso;
   const isMonthActive = rangeFrom === monthFromIso && rangeTo === monthToIso;
   const quickRangeClass = (active: boolean) =>
-    `rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] transition ${
-      active
-        ? "border-teal-400 bg-teal-500 text-white shadow-[0_8px_18px_rgba(20,184,166,0.25)]"
-        : "border-slate-200 bg-white text-slate-600 hover:border-teal-300 hover:text-teal-700"
+    `rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] transition ${active
+      ? "border-teal-400 bg-teal-500 text-white shadow-[0_8px_18px_rgba(20,184,166,0.25)]"
+      : "border-slate-200 bg-white text-slate-600 hover:border-teal-300 hover:text-teal-700"
     }`;
 
   const handleMove = (direction: -1 | 1) => {
@@ -1248,6 +1259,31 @@ export default function Page() {
         : patientStatus === "notfound"
           ? "border-rose-200 bg-rose-100 text-rose-700"
           : "border-slate-200 bg-slate-100 text-slate-600";
+
+  const handleScopeRedirect = () => {
+    const params = new URLSearchParams();
+    const hn = caseForm.hn.trim();
+    // if (hn) params.set("hn", hn);
+    if (editingEventId) params.set("caseId", editingEventId);
+    // const caseNo = caseForm.registration.caseNo.trim();
+    // if (caseNo) params.set("caseNo", caseNo);
+    const query = params.toString();
+    router.push(query ? `/?${query}` : "/");
+  };
+
+  const CalendarEvent = ({ event }: { event: BigCalendarEvent }) => {
+    const doctorSource = event.meta?.physician.physician || event.doctor;
+    const doctorLabel = getOptionLabel(physicianOptions, doctorSource) || doctorSource || "ไม่ระบุแพทย์";
+    const roomSource = event.meta?.procedure.room || event.camera;
+    const roomLabel = getOptionLabel(procedureRoomOptions, roomSource) || roomSource || "ไม่ระบุห้อง";
+    return (
+      <div className="space-y-0.5">
+        <div className="text-[11px] font-semibold">
+          {event.patient} · {roomLabel} · {doctorLabel}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-white text-slate-900">
@@ -1399,8 +1435,24 @@ export default function Page() {
                             {event.start.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
-                        <p className="mt-1 font-semibold text-slate-900">{event.patient}</p>
-                        <p className="text-[11px] text-slate-500">{event.camera} · {event.procedure}</p>
+                        <p className="mt-1 font-semibold text-slate-900">
+                          {event.patient} ·{" "}
+                          {getOptionLabel(procedureRoomOptions, event.meta?.procedure.room || event.camera) ||
+                            event.meta?.procedure.room ||
+                            event.camera ||
+                            "ไม่ระบุห้อง"}{" "}
+                          ·{" "}
+                          {getOptionLabel(physicianOptions, event.meta?.physician.physician || event.doctor) ||
+                            event.meta?.physician.physician ||
+                            event.doctor ||
+                            "ไม่ระบุแพทย์"}
+                        </p>
+                        <p className="text-[11px] text-slate-500">
+                          {event.camera} · {event.procedure}
+                          {getOptionLabel(physicianOptions, event.doctor)
+                            ? ` · ${getOptionLabel(physicianOptions, event.doctor)}`
+                            : ""}
+                        </p>
                       </button>
                     ))}
                   </div>
@@ -1485,6 +1537,7 @@ export default function Page() {
                     tooltipAccessor={() => ""}
                     popup
                     components={{
+                      event: CalendarEvent,
                       toolbar: () => null,
                     }}
                     formats={{
@@ -1515,6 +1568,13 @@ export default function Page() {
                 <h2 className="text-2xl font-semibold text-slate-900">Patient Information</h2>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  type="button" 
+                  onClick={handleScopeRedirect}
+                  className="cursor-pointer rounded-full border border-blue-200 bg-blue-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-700 hover:border-blue-300 hover:bg-blue-500/20"
+                >
+                  ส่องกล้อง
+                </button>
                 <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${patientStatusClass}`}>
                   {patientStatusLabel}
                 </span>
