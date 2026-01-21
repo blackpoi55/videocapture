@@ -471,7 +471,26 @@ export default function Page() {
   const fieldClass =
     "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-sky-300 disabled:bg-slate-100 disabled:text-slate-400";
   const labelClass = "text-[11px] uppercase tracking-[0.24em] text-slate-500";
-  const monthLabel = format(calendarDate, "MMMM yyyy", { locale: th });
+  const viewLabel = useMemo(() => {
+    if (view === Views.MONTH) {
+      return format(calendarDate, "MMMM yyyy", { locale: th });
+    }
+    if (view === Views.WEEK) {
+      const start = startOfWeek(calendarDate, { weekStartsOn: 0 });
+      const end = addDays(start, 6);
+      return `${formatThaiDisplay(isoFromDate(start))} – ${formatThaiDisplay(isoFromDate(end))}`;
+    }
+    if (view === Views.DAY) {
+      return formatThaiDisplay(isoFromDate(calendarDate));
+    }
+    if (view === Views.AGENDA) {
+      const start = startOfDay(calendarDate);
+      const end = addDays(start, 29);
+      return `${formatThaiDisplay(isoFromDate(start))} – ${formatThaiDisplay(isoFromDate(end))}`;
+    }
+    return format(calendarDate, "MMMM yyyy", { locale: th });
+  }, [calendarDate, view]);
+  const viewLabelPrefix = view === Views.MONTH ? "เดือน " : view === Views.DAY ? "วันที่ " : "ช่วง ";
 
   const parsedRangeFrom = toDateSafe(rangeFrom);
   const parsedRangeTo = toDateSafe(rangeTo);
@@ -543,7 +562,8 @@ export default function Page() {
         rangeEnd = addDays(rangeStart, 29);
       }
 
-      const payload = { datefrom: isoFromDate(rangeStart), dateto: isoFromDate(rangeEnd) };
+      const rangeEndExclusive = addDays(rangeEnd, 1);
+      const payload = { datefrom: isoFromDate(rangeStart), dateto: isoFromDate(rangeEndExclusive) };
       setMonthLoading(true);
       setApiError(null);
       const response = await postCalendagetdata(payload);
@@ -744,7 +764,13 @@ export default function Page() {
     : "ยังไม่กำหนดช่วง";
 
   const handleMove = (direction: -1 | 1) => {
-    setCalendarDate((prev) => addMonths(prev, direction));
+    setCalendarDate((prev) => {
+      if (view === Views.MONTH) return addMonths(prev, direction);
+      if (view === Views.WEEK) return addDays(prev, direction * 7);
+      if (view === Views.DAY) return addDays(prev, direction);
+      if (view === Views.AGENDA) return addDays(prev, direction * 30);
+      return addMonths(prev, direction);
+    });
   };
 
   const eventPropGetter = (event: BigCalendarEvent) => {
@@ -921,7 +947,8 @@ export default function Page() {
                     <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Calendar</p>
                     <h2 className="text-2xl font-semibold text-slate-900">Big Calenda</h2>
                     <p className="text-2xl text-slate-500">
-                      เดือน {monthLabel} · View: {view.toUpperCase()}  
+                      {viewLabelPrefix}
+                      {viewLabel}
                     </p>
                   </div>
                   <div className="flex items-center gap-2 text-[11px]">

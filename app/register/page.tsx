@@ -1,27 +1,36 @@
 "use client";
- 
-import { useMemo, useRef, useState } from "react";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
-import { getbyHN } from "@/action/api";
+import { getbyHN, getSelectTypes, getvaluebyselecttypeid, postPatient, putPatient } from "@/action/api";
+import { SELECT_TYPE_CODES, SELECT_TYPE_IDS } from "@/config";
+
+type SelectType = {
+  id: string;
+  code: string;
+  desc: string;
+};
+
+type SelectOption = {
+  id: string;
+  code: string;
+  label: string;
+};
 
 type PatientForm = {
   hn: string;
   an: string;
-  prefix: string;
-  firstName: string;
-  lastName: string;
+  prefixid: string;
+  firstname: string;
+  lastname: string;
   dobDay: string;
   dobMonth: string;
   dobYear: string;
   age: string;
-  nationality: string;
-  sex: string;
-  phone: string;
-  patientType: {
-    op: boolean;
-    ward: boolean;
-    refer: boolean;
-  };
+  nationalityid: string;
+  sexid: string;
+  contactphone: string;
+  patienttype: string;
   note: string;
 };
 
@@ -30,23 +39,162 @@ type HnStatus = "idle" | "loading" | "found" | "notfound";
 const emptyForm: PatientForm = {
   hn: "",
   an: "",
-  prefix: "",
-  firstName: "",
-  lastName: "",
+  prefixid: "",
+  firstname: "",
+  lastname: "",
   dobDay: "",
   dobMonth: "",
   dobYear: "",
   age: "",
-  nationality: "",
-  sex: "",
-  phone: "",
-  patientType: { op: false, ward: false, refer: false },
+  nationalityid: "",
+  sexid: "",
+  contactphone: "",
+  patienttype: "",
   note: "",
 };
 
-const prefixOptions = ["นาย", "นาง", "นางสาว", "ด.ช.", "ด.ญ."];
-const sexOptions = ["ชาย", "หญิง", "ไม่ระบุ"];
-const nationalityOptions = ["ไทย", "ต่างชาติ"];
+type SelectTypeKey = keyof typeof SELECT_TYPE_IDS;
+
+const normalizeText = (value: unknown) => (value == null ? "" : String(value));
+
+const normalizeCode = (value: string) => value.trim().toLowerCase();
+
+const parseSelectTypes = (raw: unknown): SelectType[] => {
+  const rows = Array.isArray(raw) ? raw : [];
+  return rows
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      const id = normalizeText(row.id ?? row.selecttypeid).trim();
+      const code = normalizeText(row.selecttypecode ?? row.code).trim();
+      const desc = normalizeText(row.selecttypedesc ?? row.desc).trim();
+      return id && code ? { id, code, desc } : null;
+    })
+    .filter(Boolean) as SelectType[];
+};
+
+const parseSelectOptions = (raw: unknown): SelectOption[] => {
+  const rows = Array.isArray(raw) ? raw : [];
+  return rows
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      const id = normalizeText(row.id ?? row.valueid).trim();
+      const code = normalizeText(row.valuecode ?? row.code ?? row.value).trim();
+      const desc = normalizeText(row.valuedesc ?? row.desc ?? row.label).trim();
+      const label = desc || code;
+      return id && label ? { id, code, label } : null;
+    })
+    .filter(Boolean) as SelectOption[];
+};
+
+const resolveTypeId = (key: SelectTypeKey, types: SelectType[]) => {
+  const configured = SELECT_TYPE_IDS[key];
+  if (configured) return configured;
+  const code = SELECT_TYPE_CODES[key];
+  if (!code) return "";
+  const matched = types.find((item) => normalizeCode(item.code) === normalizeCode(code));
+  return matched?.id ?? "";
+};
+
+const parsePatientTypeIds = (raw: unknown): string[] => {
+  const extractId = (value: unknown) => {
+    if (value == null) return "";
+    if (typeof value === "string" || typeof value === "number") return normalizeText(value).trim();
+    if (typeof value === "object") {
+      const row = value as Record<string, unknown>;
+      return normalizeText(row.id ?? row.valueid ?? row.patienttypeid ?? row.patientTypeId ?? row.code ?? row.value).trim();
+    }
+    return normalizeText(value).trim();
+  };
+
+  if (Array.isArray(raw)) {
+    return raw.map(extractId).filter(Boolean);
+  }
+  if (raw == null) return [];
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        return parsePatientTypeIds(parsed);
+      } catch {
+        return trimmed
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean);
+      }
+    }
+    return trimmed
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+  if (typeof raw === "object") {
+    const id = extractId(raw);
+    return id ? [id] : [];
+  }
+  const value = normalizeText(raw).trim();
+  return value ? [value] : [];
+};
+
+const patientTypeToString = (raw: unknown) => {
+  const ids = parsePatientTypeIds(raw);
+  return ids.join(",");
+};
+
+const patientTypeToList = (value: string) =>
+  value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const parseDobParts = (raw: unknown) => {
+  const dobRaw = normalizeText(raw).trim();
+  const fallback = { dobDay: "", dobMonth: "", dobYear: "" };
+  if (!dobRaw) return fallback;
+  const date = new Date(dobRaw);
+  if (Number.isNaN(date.getTime())) return fallback;
+  return {
+    dobDay: String(date.getDate()).padStart(2, "0"),
+    dobMonth: String(date.getMonth() + 1).padStart(2, "0"),
+    dobYear: String(date.getFullYear() + 543),
+  };
+};
+
+const buildDateOfBirth = (dobDay: string, dobMonth: string, dobYear: string) => {
+  if (!dobDay || !dobMonth || !dobYear) return "";
+  const yearThai = Number(dobYear);
+  const month = Number(dobMonth);
+  const day = Number(dobDay);
+  if (!Number.isFinite(yearThai) || !Number.isFinite(month) || !Number.isFinite(day)) return "";
+  if (month < 1 || month > 12 || day < 1 || day > 31) return "";
+  const year = yearThai - 543;
+  if (year < 1800) return "";
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString();
+};
+
+const calculateAgeFromDob = (dobDay: string, dobMonth: string, dobYear: string) => {
+  if (!dobDay || !dobMonth || !dobYear) return "";
+  const yearThai = Number(dobYear);
+  const month = Number(dobMonth);
+  const day = Number(dobDay);
+  if (!Number.isFinite(yearThai) || !Number.isFinite(month) || !Number.isFinite(day)) return "";
+  if (month < 1 || month > 12 || day < 1 || day > 31) return "";
+  const year = yearThai - 543;
+  if (year < 1800) return "";
+  const dob = new Date(year, month - 1, day);
+  if (Number.isNaN(dob.getTime())) return "";
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age -= 1;
+  }
+  if (age < 0) return "";
+  return String(age);
+};
 
 const labelClass = "text-[12px] uppercase tracking-[0.18em] text-slate-500/70";
 const fieldClass =
@@ -76,6 +224,11 @@ export default function RegisterPage() {
   const [form, setForm] = useState<PatientForm>(emptyForm);
   const [mode, setMode] = useState<"create" | "update">("create");
   const [hnStatus, setHnStatus] = useState<HnStatus>("idle");
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [prefixOptions, setPrefixOptions] = useState<SelectOption[]>([]);
+  const [nationalityOptions, setNationalityOptions] = useState<SelectOption[]>([]);
+  const [sexOptions, setSexOptions] = useState<SelectOption[]>([]);
+  const [patientTypeOptions, setPatientTypeOptions] = useState<SelectOption[]>([]);
   const lastFetchedHnRef = useRef<string | null>(null);
 
   const dayOptions = useMemo(() => Array.from({ length: 31 }, (_, i) => formatDay(i + 1)), []);
@@ -89,11 +242,20 @@ export default function RegisterPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const updatePatientType = (field: keyof PatientForm["patientType"], value: boolean) => {
-    setForm((prev) => ({ ...prev, patientType: { ...prev.patientType, [field]: value } }));
+  const togglePatientType = (id: string, checked: boolean) => {
+    setForm((prev) => {
+      const current = patientTypeToList(prev.patienttype);
+      const next = new Set(current);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return { ...prev, patienttype: Array.from(next).join(",") };
+    });
   };
 
-  const toast = (icon: "success" | "error" | "info", title: string, text?: string) =>
+  const toast = useCallback((icon: "success" | "error" | "info", title: string, text?: string) => {
     Swal.fire({
       icon,
       title,
@@ -104,6 +266,61 @@ export default function RegisterPage() {
       showConfirmButton: false,
       timerProgressBar: true,
     });
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadOptions = async () => {
+      setOptionsLoading(true);
+      try {
+        let types: SelectType[] = [];
+        const needsTypes = Object.values(SELECT_TYPE_IDS).some((value) => !value);
+        if (needsTypes) {
+          const response = await getSelectTypes();
+          if ((response as { error?: unknown })?.error) {
+            throw new Error((response as { message?: string })?.message || "โหลดประเภทไม่สำเร็จ");
+          }
+          const raw = (response as { data?: unknown })?.data ?? response;
+          types = parseSelectTypes(raw);
+        }
+        const typeIds = {
+          prefix: resolveTypeId("prefix", types),
+          nationality: resolveTypeId("nationality", types),
+          sex: resolveTypeId("sex", types),
+          patientType: resolveTypeId("patientType", types),
+        };
+        const [prefixRes, nationalityRes, sexRes, patientTypeRes] = await Promise.all([
+          typeIds.prefix ? getvaluebyselecttypeid(typeIds.prefix) : Promise.resolve({ data: [] }),
+          typeIds.nationality ? getvaluebyselecttypeid(typeIds.nationality) : Promise.resolve({ data: [] }),
+          typeIds.sex ? getvaluebyselecttypeid(typeIds.sex) : Promise.resolve({ data: [] }),
+          typeIds.patientType ? getvaluebyselecttypeid(typeIds.patientType) : Promise.resolve({ data: [] }),
+        ]);
+        if (!active) return;
+        setPrefixOptions(parseSelectOptions((prefixRes as { data?: unknown })?.data ?? prefixRes));
+        setNationalityOptions(parseSelectOptions((nationalityRes as { data?: unknown })?.data ?? nationalityRes));
+        setSexOptions(parseSelectOptions((sexRes as { data?: unknown })?.data ?? sexRes));
+        setPatientTypeOptions(parseSelectOptions((patientTypeRes as { data?: unknown })?.data ?? patientTypeRes));
+      } catch (error) {
+        if (!active) return;
+        setPrefixOptions([]);
+        setNationalityOptions([]);
+        setSexOptions([]);
+        setPatientTypeOptions([]);
+        toast("error", "โหลดตัวเลือกไม่สำเร็จ", (error as Error)?.message || "โปรดลองใหม่อีกครั้ง");
+      } finally {
+        if (active) setOptionsLoading(false);
+      }
+    };
+    loadOptions();
+    return () => {
+      active = false;
+    };
+  }, [toast]);
+
+  useEffect(() => {
+    const nextAge = calculateAgeFromDob(form.dobDay, form.dobMonth, form.dobYear);
+    setForm((prev) => (prev.age === nextAge ? prev : { ...prev, age: nextAge }));
+  }, [form.dobDay, form.dobMonth, form.dobYear]);
 
   const handleHnBlur = async (rawHn?: string) => {
     const hn = (rawHn ?? form.hn).trim();
@@ -123,29 +340,33 @@ export default function RegisterPage() {
     lastFetchedHnRef.current = hn;
 
     if (!(response as { error?: unknown })?.error) {
+      const status = (response as { status?: boolean })?.status;
+      if (status === false) {
+        setMode("create");
+        setHnStatus("notfound");
+        setForm({ ...emptyForm, hn });
+        toast("info", "ไม่พบข้อมูลเดิม", (response as { message?: string })?.message || "กรอกข้อมูลเพิ่มเติมเพื่อเพิ่มผู้ป่วยใหม่");
+        return;
+      }
       const data = (response as { data?: unknown })?.data ?? response;
-      const row = data as Record<string, unknown> | null;
-      if (row) {
-        const dobRaw = String(row.dob ?? row.birthdate ?? "").trim();
-        const dobDate = dobRaw ? new Date(dobRaw) : null;
-        const dobDay = dobDate ? String(dobDate.getDate()).padStart(2, "0") : "";
-        const dobMonth = dobDate ? String(dobDate.getMonth() + 1).padStart(2, "0") : "";
-        const dobYear = dobDate ? String(dobDate.getFullYear() + 543) : "";
+      const row = data && typeof data === "object" ? (data as Record<string, unknown>) : null;
+      if (row && Object.keys(row).length) {
+        const dobParts = parseDobParts(row.dateofbirth ?? row.dob ?? row.birthdate ?? "");
         setForm({
-          hn: String(row.hn ?? row.HN ?? hn),
-          an: String(row.an ?? row.AN ?? ""),
-          prefix: String(row.prefix ?? row.title ?? ""),
-          firstName: String(row.firstName ?? row.firstname ?? ""),
-          lastName: String(row.lastName ?? row.lastname ?? ""),
-          dobDay,
-          dobMonth,
-          dobYear,
-          age: String(row.age ?? ""),
-          nationality: String(row.nationality ?? ""),
-          sex: String(row.sex ?? row.gender ?? ""),
-          phone: String(row.phone ?? row.tel ?? ""),
-          patientType: { ...emptyForm.patientType },
-          note: "",
+          hn: normalizeText(row.hn ?? row.HN ?? hn).trim(),
+          an: normalizeText(row.an ?? row.AN ?? ""),
+          prefixid: normalizeText(row.prefixid ?? row.prefixId ?? row.prefix ?? row.title ?? ""),
+          firstname: normalizeText(row.firstname ?? row.firstName ?? ""),
+          lastname: normalizeText(row.lastname ?? row.lastName ?? ""),
+          dobDay: dobParts.dobDay,
+          dobMonth: dobParts.dobMonth,
+          dobYear: dobParts.dobYear,
+          age: normalizeText(row.age ?? ""),
+          nationalityid: normalizeText(row.nationalityid ?? row.nationalityId ?? row.nationality ?? ""),
+          sexid: normalizeText(row.sexid ?? row.sexId ?? row.sex ?? row.gender ?? ""),
+          contactphone: normalizeText(row.contactphone ?? row.contactPhone ?? row.phone ?? row.tel ?? ""),
+          patienttype: patientTypeToString(row.patienttype ?? row.patientType ?? []),
+          note: normalizeText(row.note ?? ""),
         });
         setMode("update");
         setHnStatus("found");
@@ -170,7 +391,7 @@ export default function RegisterPage() {
       toast("error", "กรุณากรอก HN");
       return;
     }
-    if (!form.firstName || !form.lastName) {
+    if (!form.firstname.trim() || !form.lastname.trim()) {
       toast("error", "กรุณากรอกชื่อ-นามสกุล");
       return;
     }
@@ -182,7 +403,35 @@ export default function RegisterPage() {
       didOpen: () => Swal.showLoading(),
     });
 
+    const dateofbirth = buildDateOfBirth(form.dobDay, form.dobMonth, form.dobYear);
+    const payload: Record<string, unknown> = {
+      hn,
+      an: form.an.trim() || null,
+      prefixid: form.prefixid || null,
+      firstname: form.firstname.trim(),
+      lastname: form.lastname.trim(),
+      contactphone: form.contactphone.trim() || null,
+      nationalityid: form.nationalityid || null,
+      sexid: form.sexid || null,
+      dateofbirth: dateofbirth || null,
+      note: form.note.trim() || null,
+      patienttype: form.patienttype.trim() || null,
+    };
+    if (form.age.trim()) {
+      payload.age = form.age.trim();
+    }
+    const response = mode === "update" ? await putPatient(hn, payload) : await postPatient(payload);
     Swal.close();
+    if ((response as { error?: unknown })?.error) {
+      toast("error", "บันทึกข้อมูลไม่สำเร็จ", (response as { message?: string })?.message || "โปรดลองใหม่อีกครั้ง");
+      return;
+    }
+    if ((response as { status?: boolean })?.status === false) {
+      toast("error", "บันทึกข้อมูลไม่สำเร็จ", (response as { message?: string })?.message || "โปรดลองใหม่อีกครั้ง");
+      return;
+    }
+    setMode("update");
+    setHnStatus("found");
     toast("success", mode === "update" ? "บันทึกข้อมูลสำเร็จ" : "เพิ่มข้อมูลสำเร็จ");
   };
 
@@ -195,10 +444,8 @@ export default function RegisterPage() {
 
       <div className="relative z-10 mx-auto w-full max-w-full px-6 py-8 pb-16">
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-[11px] uppercase tracking-[0.32em] text-slate-500/70">Intraview · Register</p>
-            <h1 className="mt-2 text-[32px] font-semibold">ลงทะเบียนผู้ป่วย</h1>
-            <p className="text-sm text-slate-500/70">กรอกข้อมูลใหม่หรืออัปเดตข้อมูลเดิมจาก HN</p>
+          <div> 
+            <h1 className="mt-2 text-[32px] font-semibold">ลงทะเบียนผู้ป่วย</h1> 
           </div>
           <div className={`${statusBaseClass} ${statusTone[hnStatus]}`}>
             {hnStatus === "found" && "พบข้อมูลเดิม"}
@@ -229,7 +476,7 @@ export default function RegisterPage() {
                 placeholder="เช่น 1-65"
                 className={fieldClass}
               />
-              <span className="text-xs text-slate-500/70">กรอก 8 หลัก แล้วระบบจะค้นหาอัตโนมัติ</span>
+              <span className="text-xs text-slate-500/70">กด Enter เพื่อค้นหา</span>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -244,11 +491,16 @@ export default function RegisterPage() {
 
             <div className="flex flex-col gap-2">
               <label className={labelClass}>Prefix</label>
-              <select value={form.prefix} onChange={(e) => updateField("prefix", e.target.value)} className={fieldClass}>
-                <option value="">เลือกคำนำหน้า</option>
+              <select
+                value={form.prefixid}
+                onChange={(e) => updateField("prefixid", e.target.value)}
+                className={fieldClass}
+                disabled={optionsLoading}
+              >
+                <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกคำนำหน้า"}</option>
                 {prefixOptions.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
@@ -258,14 +510,22 @@ export default function RegisterPage() {
               <label className={labelClass}>
                 Firstname <span className="text-rose-400">*</span>
               </label>
-              <input value={form.firstName} onChange={(e) => updateField("firstName", e.target.value)} className={fieldClass} />
+              <input
+                value={form.firstname}
+                onChange={(e) => updateField("firstname", e.target.value)}
+                className={fieldClass}
+              />
             </div>
 
             <div className="flex flex-col gap-2">
               <label className={labelClass}>
                 Lastname <span className="text-rose-400">*</span>
               </label>
-              <input value={form.lastName} onChange={(e) => updateField("lastName", e.target.value)} className={fieldClass} />
+              <input
+                value={form.lastname}
+                onChange={(e) => updateField("lastname", e.target.value)}
+                className={fieldClass}
+              />
             </div>
 
             <div className="col-span-1 flex flex-col gap-2 md:col-span-2 lg:col-span-2">
@@ -300,20 +560,21 @@ export default function RegisterPage() {
 
             <div className="flex flex-col gap-2">
               <label className={labelClass}>Age</label>
-              <input value={form.age} onChange={(e) => updateField("age", e.target.value)} className={fieldClass} />
+              <input value={form.age} readOnly placeholder="คำนวณอัตโนมัติ" className={fieldClass} />
             </div>
 
             <div className="flex flex-col gap-2">
               <label className={labelClass}>Nationality</label>
               <select
-                value={form.nationality}
-                onChange={(e) => updateField("nationality", e.target.value)}
+                value={form.nationalityid}
+                onChange={(e) => updateField("nationalityid", e.target.value)}
                 className={fieldClass}
+                disabled={optionsLoading}
               >
-                <option value="">เลือกสัญชาติ</option>
+                <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกสัญชาติ"}</option>
                 {nationalityOptions.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
@@ -321,11 +582,16 @@ export default function RegisterPage() {
 
             <div className="flex flex-col gap-2">
               <label className={labelClass}>Sex</label>
-              <select value={form.sex} onChange={(e) => updateField("sex", e.target.value)} className={fieldClass}>
-                <option value="">เลือกเพศ</option>
+              <select
+                value={form.sexid}
+                onChange={(e) => updateField("sexid", e.target.value)}
+                className={fieldClass}
+                disabled={optionsLoading}
+              >
+                <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกเพศ"}</option>
                 {sexOptions.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
                   </option>
                 ))}
               </select>
@@ -334,8 +600,8 @@ export default function RegisterPage() {
             <div className="flex flex-col gap-2">
               <label className={labelClass}>Phone</label>
               <input
-                value={form.phone}
-                onChange={(e) => updateField("phone", e.target.value)}
+                value={form.contactphone}
+                onChange={(e) => updateField("contactphone", e.target.value)}
                 placeholder="08x-xxx-xxxx"
                 className={fieldClass}
               />
@@ -344,30 +610,21 @@ export default function RegisterPage() {
             <div className="col-span-1 flex flex-col gap-2 md:col-span-2 lg:col-span-4">
               <label className={labelClass}>Patient type</label>
               <div className="flex flex-wrap gap-4">
-                <label className="flex items-center gap-2 text-[13px] text-slate-800/80">
-                  <input
-                    type="checkbox"
-                    checked={form.patientType.op}
-                    onChange={(e) => updatePatientType("op", e.target.checked)}
-                  />
-                  OP
-                </label>
-                <label className="flex items-center gap-2 text-[13px] text-slate-800/80">
-                  <input
-                    type="checkbox"
-                    checked={form.patientType.ward}
-                    onChange={(e) => updatePatientType("ward", e.target.checked)}
-                  />
-                  Ward
-                </label>
-                <label className="flex items-center gap-2 text-[13px] text-slate-800/80">
-                  <input
-                    type="checkbox"
-                    checked={form.patientType.refer}
-                    onChange={(e) => updatePatientType("refer", e.target.checked)}
-                  />
-                  Refer
-                </label>
+                {optionsLoading && <span className="text-xs text-slate-500/70">กำลังโหลด...</span>}
+                {!optionsLoading && patientTypeOptions.length === 0 && (
+                  <span className="text-xs text-slate-500/70">ไม่พบข้อมูล</span>
+                )}
+                {!optionsLoading &&
+                  patientTypeOptions.map((opt) => (
+                    <label key={opt.id} className="flex items-center gap-2 text-[13px] text-slate-800/80">
+                      <input
+                        type="checkbox"
+                        checked={patientTypeToList(form.patienttype).includes(opt.id)}
+                        onChange={(e) => togglePatientType(opt.id, e.target.checked)}
+                      />
+                      {opt.label}
+                    </label>
+                  ))}
               </div>
             </div>
 
