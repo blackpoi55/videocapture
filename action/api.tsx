@@ -27,3 +27,11 @@ export const postPatient = (data: unknown) => {
 export const putPatient = (hn: string, data: unknown) => {
   return PUT(`/patients/${hn}`, data);
 };
+
+export const postCalendarCase = (data: unknown) => {
+  return POST("/history", data);
+};
+
+export const putCalendarCase = (id: string, data: unknown) => {
+  return PUT(`/history/${id}`, data);
+};

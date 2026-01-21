@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Calendar, dateFnsLocalizer, SlotInfo, View, Views } from "react-big-calendar";
 import {
   addDays,
@@ -19,7 +19,8 @@ import {
 import { th } from "date-fns/locale/th";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import Swal from "sweetalert2";
-import { getbyHN, postCalendagetdata } from "@/action/api";
+import { getbyHN, getSelectTypes, getvaluebyselecttypeid, postCalendagetdata, postCalendarCase, putCalendarCase } from "@/action/api";
+import { SELECT_TYPE_CODES, SELECT_TYPE_IDS } from "@/config";
 
 type CaseItem = {
   id: string;
@@ -51,13 +52,19 @@ type PatientInfo = {
   hn: string;
   an: string;
   prefix: string;
+  prefixId: string;
   firstName: string;
   lastName: string;
   dob: string;
   age: string;
   nationality: string;
+  nationalityId: string;
   sex: string;
+  sexId: string;
   phone: string;
+  patientType: string;
+  patientTypeIds: string;
+  note: string;
 };
 
 type RegistrationInfo = {
@@ -112,6 +119,20 @@ type CaseMeta = {
   physician: PhysicianInfo;
 };
 
+type SelectType = {
+  id: string;
+  code: string;
+  desc: string;
+};
+
+type SelectOption = {
+  id: string;
+  code: string;
+  label: string;
+};
+
+type SelectTypeKey = keyof typeof SELECT_TYPE_IDS;
+
 const locales = { th };
 
 const localizer = dateFnsLocalizer({
@@ -127,6 +148,98 @@ const toLocalDate = (value: string) => {
   if (!Number.isNaN(parsedLocal.getTime())) return parsedLocal;
   const parsed = new Date(value);
   return parsed;
+};
+
+const normalizeText = (value: unknown) => (value == null ? "" : String(value));
+
+const normalizeCode = (value: string) => value.trim().toLowerCase();
+
+const parseSelectTypes = (raw: unknown): SelectType[] => {
+  const rows = Array.isArray(raw) ? raw : [];
+  return rows
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      const id = normalizeText(row.id ?? row.selecttypeid).trim();
+      const code = normalizeText(row.selecttypecode ?? row.code).trim();
+      const desc = normalizeText(row.selecttypedesc ?? row.desc).trim();
+      return id && code ? { id, code, desc } : null;
+    })
+    .filter(Boolean) as SelectType[];
+};
+
+const parseSelectOptions = (raw: unknown): SelectOption[] => {
+  const rows = Array.isArray(raw) ? raw : [];
+  return rows
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      const id = normalizeText(row.id ?? row.valueid).trim();
+      const code = normalizeText(row.valuecode ?? row.code ?? row.value).trim();
+      const desc = normalizeText(row.valuedesc ?? row.desc ?? row.label).trim();
+      const label = desc || code;
+      return id && label ? { id, code, label } : null;
+    })
+    .filter(Boolean) as SelectOption[];
+};
+
+const resolveTypeId = (key: SelectTypeKey, types: SelectType[]) => {
+  const configured = SELECT_TYPE_IDS[key];
+  if (configured) return configured;
+  const code = SELECT_TYPE_CODES[key];
+  if (!code) return "";
+  const matched = types.find((item) => normalizeCode(item.code) === normalizeCode(code));
+  return matched?.id ?? "";
+};
+
+const getOptionLabel = (options: SelectOption[], value: string) => {
+  if (!value) return "";
+  const trimmed = value.trim();
+  const byId = options.find((opt) => opt.id === trimmed);
+  if (byId) return byId.label;
+  const byCode = options.find((opt) => normalizeCode(opt.code) === normalizeCode(trimmed));
+  if (byCode) return byCode.label;
+  return trimmed;
+};
+
+const parsePatientTypeIds = (raw: unknown): string[] => {
+  const extractId = (value: unknown) => {
+    if (value == null) return "";
+    if (typeof value === "string" || typeof value === "number") return normalizeText(value).trim();
+    if (typeof value === "object") {
+      const row = value as Record<string, unknown>;
+      return normalizeText(row.id ?? row.valueid ?? row.patienttypeid ?? row.patientTypeId ?? row.code ?? row.value).trim();
+    }
+    return normalizeText(value).trim();
+  };
+
+  if (Array.isArray(raw)) {
+    return raw.map(extractId).filter(Boolean);
+  }
+  if (raw == null) return [];
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        return parsePatientTypeIds(parsed);
+      } catch {
+        return trimmed
+          .split(",")
+          .map((value) => value.trim())
+          .filter(Boolean);
+      }
+    }
+    return trimmed
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+  if (typeof raw === "object") {
+    const id = extractId(raw);
+    return id ? [id] : [];
+  }
+  const value = normalizeText(raw).trim();
+  return value ? [value] : [];
 };
 
 const normalizeTime = (value: unknown, fallback: string) => {
@@ -209,17 +322,26 @@ const toCaseItems = (payload: unknown): CaseItem[] => {
     const caseTimeTo = String(row.casetimeto ?? row.caseTimeTo ?? "").trim();
     const caseNo = String(row.casenumber ?? row.caseNumber ?? row.caseNo ?? "").trim();
     const an = String(row.an ?? "").trim();
+    const dobRaw = String(row.dateofbirth ?? row.dob ?? row.birthdate ?? "").trim();
+    const dobValue = dobRaw ? isoFromDate(dobRaw) : "";
+    const computedAge = calculateAgeFromDob(dobRaw || dobValue);
     const patientMeta: PatientInfo = {
       hn,
       an,
       prefix,
+      prefixId: "",
       firstName,
       lastName,
-      dob: "",
-      age: String(row.age ?? "").trim(),
+      dob: dobValue,
+      age: computedAge || String(row.age ?? "").trim(),
       nationality: "",
+      nationalityId: "",
       sex: "",
+      sexId: "",
       phone: "",
+      patientType: "",
+      patientTypeIds: "",
+      note: "",
     };
     const meta: CaseMeta = {
       hn,
@@ -287,6 +409,20 @@ const toDateSafe = (value: string | null | undefined) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
+const calculateAgeFromDob = (value: string) => {
+  if (!value) return "";
+  const parsed = toLocalDate(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const today = new Date();
+  let age = today.getFullYear() - parsed.getFullYear();
+  const monthDiff = today.getMonth() - parsed.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < parsed.getDate())) {
+    age -= 1;
+  }
+  if (age < 0) return "";
+  return String(age);
+};
+
 const hasPatientDetails = (patient: PatientInfo | null) => {
   if (!patient) return false;
   return Boolean(
@@ -301,21 +437,47 @@ const hasPatientDetails = (patient: PatientInfo | null) => {
   );
 };
 
-const buildPatientFromResponse = (hn: string, response: unknown): PatientInfo | null => {
+const buildPatientFromResponse = (
+  hn: string,
+  response: unknown,
+  options: {
+    prefixOptions: SelectOption[];
+    nationalityOptions: SelectOption[];
+    sexOptions: SelectOption[];
+    patientTypeOptions: SelectOption[];
+  }
+): PatientInfo | null => {
   const data = (response as { data?: unknown })?.data ?? response;
   const row = data as Record<string, unknown> | null;
   if (!row) return null;
+  const prefixId = normalizeText(row.prefixid ?? row.prefixId ?? row.prefix ?? row.title ?? "");
+  const nationalityId = normalizeText(row.nationalityid ?? row.nationalityId ?? row.nationality ?? "");
+  const sexId = normalizeText(row.sexid ?? row.sexId ?? row.sex ?? row.gender ?? "");
+  const patientTypeIds = parsePatientTypeIds(row.patienttype ?? row.patientType ?? []);
+  const patientTypeLabel = patientTypeIds
+    .map((id) => getOptionLabel(options.patientTypeOptions, id))
+    .filter(Boolean)
+    .join(", ");
+  const dobRaw = normalizeText(row.dateofbirth ?? row.dob ?? row.birthdate ?? "");
+  const dobValue = dobRaw ? isoFromDate(dobRaw) : "";
+  const computedAge = calculateAgeFromDob(dobRaw || dobValue);
   const patient: PatientInfo = {
-    hn: String(row.hn ?? row.HN ?? hn),
-    an: String(row.an ?? row.AN ?? ""),
-    prefix: String(row.prefix ?? row.title ?? ""),
-    firstName: String(row.firstName ?? row.firstname ?? ""),
-    lastName: String(row.lastName ?? row.lastname ?? ""),
-    dob: String(row.dob ?? row.birthdate ?? ""),
-    age: String(row.age ?? ""),
-    nationality: String(row.nationality ?? ""),
-    sex: String(row.sex ?? row.gender ?? ""),
-    phone: String(row.phone ?? row.tel ?? ""),
+    hn: normalizeText(row.hn ?? row.HN ?? hn),
+    an: normalizeText(row.an ?? row.AN ?? ""),
+    prefix: getOptionLabel(options.prefixOptions, prefixId),
+    prefixId,
+    firstName: normalizeText(row.firstname ?? row.firstName ?? ""),
+    lastName: normalizeText(row.lastname ?? row.lastName ?? ""),
+    dob: dobValue,
+    age: computedAge || normalizeText(row.age ?? ""),
+    nationality: getOptionLabel(options.nationalityOptions, nationalityId),
+    nationalityId,
+    sex: getOptionLabel(options.sexOptions, sexId),
+    sexId,
+    phone: normalizeText(row.contactphone ?? row.contactPhone ?? row.phone ?? row.tel ?? ""),
+    patientType: patientTypeLabel || patientTypeIds.join(", "),
+    patientTypeIds: patientTypeIds.join(", "),
+    note: normalizeText(row.note ?? ""),
   };
   if (patient.hn || patient.an || patient.firstName || patient.lastName) return patient;
   return null;
@@ -375,24 +537,6 @@ const toFullName = (patient: PatientInfo | null) => {
   if (!patient) return "";
   const prefix = patient.prefix ? `${patient.prefix} ` : "";
   return `${prefix}${patient.firstName} ${patient.lastName}`.trim();
-};
-
-const dropdownMock = {
-  rooms: ["OR 1", "OR 2", "OR 3", "NICU", "Ward"],
-  procedures: ["ตรวจกล้องภายใน", "ส่องกล้องหลอดเลือด", "ตรวจกล้องกระดูก", "ตรวจกล้องช่องท้อง"],
-  mainProcedures: ["Upper GI", "Lower GI", "Bronchoscopy", "Cystoscopy"],
-  financials: ["Self-pay", "Insurance", "SSO", "ข้าราชการ"],
-  indications: ["Bleeding", "Follow-up", "Pain", "Screening"],
-  rapid: ["Yes", "No"],
-  histopath: ["Required", "Not required"],
-  subs: ["Sub A", "Sub B", "Sub C"],
-  caseTypes: ["OPD", "IPD", "ER"],
-  anesthes: ["GA", "MAC", "Local", "None"],
-  anestheAssists: ["วิสัญญี A", "วิสัญญี B"],
-  physicians: ["นพ. อภิชาติ", "นพ. ไตรภพ", "นพ. กานต์", "นพ. เชิดชัย"],
-  nurses: ["พยาบาล ก", "พยาบาล ข", "พยาบาล ค"],
-  staffs: ["เจ้าหน้าที่ 1", "เจ้าหน้าที่ 2"],
-  diagnoses: ["Dx A", "Dx B", "Dx C"],
 };
 
 const toCalendarEvent = (item: CaseItem): BigCalendarEvent => {
@@ -467,6 +611,27 @@ export default function Page() {
   const [monthLoading, setMonthLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [autoFetchHn, setAutoFetchHn] = useState(false);
+  const [prefixOptions, setPrefixOptions] = useState<SelectOption[]>([]);
+  const [nationalityOptions, setNationalityOptions] = useState<SelectOption[]>([]);
+  const [sexOptions, setSexOptions] = useState<SelectOption[]>([]);
+  const [patientTypeOptions, setPatientTypeOptions] = useState<SelectOption[]>([]);
+  const [procedureOptions, setProcedureOptions] = useState<SelectOption[]>([]);
+  const [mainProcedureOptions, setMainProcedureOptions] = useState<SelectOption[]>([]);
+  const [financialOptions, setFinancialOptions] = useState<SelectOption[]>([]);
+  const [indicationOptions, setIndicationOptions] = useState<SelectOption[]>([]);
+  const [caseTypeOptions, setCaseTypeOptions] = useState<SelectOption[]>([]);
+  const [rapidOptions, setRapidOptions] = useState<SelectOption[]>([]);
+  const [histopathOptions, setHistopathOptions] = useState<SelectOption[]>([]);
+  const [subOptions, setSubOptions] = useState<SelectOption[]>([]);
+  const [anestheOptions, setAnestheOptions] = useState<SelectOption[]>([]);
+  const [anestheAssistOptions, setAnestheAssistOptions] = useState<SelectOption[]>([]);
+  const [physicianOptions, setPhysicianOptions] = useState<SelectOption[]>([]);
+  const [nurseOptions, setNurseOptions] = useState<SelectOption[]>([]);
+  const [staffOptions, setStaffOptions] = useState<SelectOption[]>([]);
+  const [diagnosisOptions, setDiagnosisOptions] = useState<SelectOption[]>([]);
+  const [procedureRoomOptions, setProcedureRoomOptions] = useState<SelectOption[]>([]);
+  const [procedureRoomLoading, setProcedureRoomLoading] = useState(false);
+  const [procedureRoomFilter, setProcedureRoomFilter] = useState("");
   const fieldsDisabled = patientStatus !== "found";
   const fieldClass =
     "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-sky-300 disabled:bg-slate-100 disabled:text-slate-400";
@@ -497,28 +662,210 @@ export default function Page() {
   const rangeValid = Boolean(parsedRangeFrom && parsedRangeTo && parsedRangeFrom <= parsedRangeTo);
   const rangeDays = rangeValid ? differenceInCalendarDays(parsedRangeTo!, parsedRangeFrom!) + 1 : 0;
 
+  const hydratePatientLabels = useCallback(
+    (patient: PatientInfo) => {
+      const prefix = getOptionLabel(prefixOptions, patient.prefixId || patient.prefix);
+      const nationality = getOptionLabel(nationalityOptions, patient.nationalityId || patient.nationality);
+      const sex = getOptionLabel(sexOptions, patient.sexId || patient.sex);
+      const patientTypeIds = parsePatientTypeIds(patient.patientTypeIds || patient.patientType);
+      const patientTypeLabel = patientTypeIds
+        .map((id) => getOptionLabel(patientTypeOptions, id))
+        .filter(Boolean)
+        .join(", ");
+      const computedAge = calculateAgeFromDob(patient.dob);
+      return {
+        ...patient,
+        prefix,
+        nationality,
+        sex,
+        patientType: patientTypeLabel || patient.patientType,
+        patientTypeIds: patientTypeIds.join(", "),
+        age: computedAge || patient.age,
+      };
+    },
+    [prefixOptions, nationalityOptions, sexOptions, patientTypeOptions]
+  );
+
+  const filteredDashboardEvents = useMemo(() => {
+    if (!procedureRoomFilter) return dashboardEvents;
+    const filterLabel = getOptionLabel(procedureRoomOptions, procedureRoomFilter);
+    return dashboardEvents.filter((event) => {
+      const room = (event.meta?.procedure.room || event.camera || "").trim();
+      return room === procedureRoomFilter || room === filterLabel;
+    });
+  }, [dashboardEvents, procedureRoomFilter, procedureRoomOptions]);
+
+  const filteredMonthEvents = useMemo(() => {
+    if (!procedureRoomFilter) return monthEvents;
+    const filterLabel = getOptionLabel(procedureRoomOptions, procedureRoomFilter);
+    return monthEvents.filter((event) => {
+      const room = (event.meta?.procedure.room || event.camera || "").trim();
+      return room === procedureRoomFilter || room === filterLabel;
+    });
+  }, [monthEvents, procedureRoomFilter, procedureRoomOptions]);
+
   const eventsInRange = useMemo(() => {
     if (!rangeValid || !parsedRangeFrom || !parsedRangeTo) return [];
     const rangeStart = startOfDay(parsedRangeFrom);
     const rangeEnd = endOfDay(parsedRangeTo);
-    return dashboardEvents
+    return filteredDashboardEvents
       .filter((event) => event.start >= rangeStart && event.start <= rangeEnd)
       .sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [dashboardEvents, parsedRangeFrom, parsedRangeTo, rangeValid]);
+  }, [filteredDashboardEvents, parsedRangeFrom, parsedRangeTo, rangeValid]);
 
   const todayEvents = useMemo(() => {
     if (!filterDate) return [];
-    return dashboardEvents
+    return filteredDashboardEvents
       .filter((event) => isoFromDate(event.start) === filterDate)
       .sort((a, b) => a.start.getTime() - b.start.getTime());
-  }, [dashboardEvents, filterDate]);
+  }, [filteredDashboardEvents, filterDate]);
 
   useEffect(() => {
-    if (!modalOpen) return;
-    setOptionsLoading(true);
-    const timer = setTimeout(() => setOptionsLoading(false), 650);
-    return () => clearTimeout(timer);
-  }, [modalOpen]);
+    let active = true;
+    const loadSelectOptions = async () => {
+      setOptionsLoading(true);
+      setProcedureRoomLoading(true);
+      try {
+        let types: SelectType[] = [];
+        const needsTypes = Object.values(SELECT_TYPE_IDS).some((value) => !value);
+        if (needsTypes) {
+          const response = await getSelectTypes();
+          if ((response as { error?: unknown })?.error) {
+            throw new Error((response as { message?: string })?.message || "โหลดประเภทไม่สำเร็จ");
+          }
+          const raw = (response as { data?: unknown })?.data ?? response;
+          types = parseSelectTypes(raw);
+        }
+        const typeIds = {
+          prefix: resolveTypeId("prefix", types),
+          nationality: resolveTypeId("nationality", types),
+          sex: resolveTypeId("sex", types),
+          patientType: resolveTypeId("patientType", types),
+          procedureRoom: resolveTypeId("procedureRoom", types),
+          procedure: resolveTypeId("procedure", types),
+          mainProcedure: resolveTypeId("mainProcedure", types),
+          financial: resolveTypeId("financial", types),
+          indication: resolveTypeId("indication", types),
+          caseType: resolveTypeId("caseType", types),
+          rapid: resolveTypeId("rapid", types),
+          histopath: resolveTypeId("histopath", types),
+          sub: resolveTypeId("sub", types),
+          anesthe: resolveTypeId("anesthe", types),
+          anestheAssist: resolveTypeId("anestheAssist", types),
+          physician: resolveTypeId("physician", types),
+          nurse: resolveTypeId("nurse", types),
+          staff: resolveTypeId("staff", types),
+          diagnosis: resolveTypeId("diagnosis", types),
+        };
+        const [
+          prefixRes,
+          nationalityRes,
+          sexRes,
+          patientTypeRes,
+          procedureRoomRes,
+          procedureRes,
+          mainProcedureRes,
+          financialRes,
+          indicationRes,
+          caseTypeRes,
+          rapidRes,
+          histopathRes,
+          subRes,
+          anestheRes,
+          anestheAssistRes,
+          physicianRes,
+          nurseRes,
+          staffRes,
+          diagnosisRes,
+        ] = await Promise.all([
+          typeIds.prefix ? getvaluebyselecttypeid(typeIds.prefix) : Promise.resolve({ data: [] }),
+          typeIds.nationality ? getvaluebyselecttypeid(typeIds.nationality) : Promise.resolve({ data: [] }),
+          typeIds.sex ? getvaluebyselecttypeid(typeIds.sex) : Promise.resolve({ data: [] }),
+          typeIds.patientType ? getvaluebyselecttypeid(typeIds.patientType) : Promise.resolve({ data: [] }),
+          typeIds.procedureRoom ? getvaluebyselecttypeid(typeIds.procedureRoom) : Promise.resolve({ data: [] }),
+          typeIds.procedure ? getvaluebyselecttypeid(typeIds.procedure) : Promise.resolve({ data: [] }),
+          typeIds.mainProcedure ? getvaluebyselecttypeid(typeIds.mainProcedure) : Promise.resolve({ data: [] }),
+          typeIds.financial ? getvaluebyselecttypeid(typeIds.financial) : Promise.resolve({ data: [] }),
+          typeIds.indication ? getvaluebyselecttypeid(typeIds.indication) : Promise.resolve({ data: [] }),
+          typeIds.caseType ? getvaluebyselecttypeid(typeIds.caseType) : Promise.resolve({ data: [] }),
+          typeIds.rapid ? getvaluebyselecttypeid(typeIds.rapid) : Promise.resolve({ data: [] }),
+          typeIds.histopath ? getvaluebyselecttypeid(typeIds.histopath) : Promise.resolve({ data: [] }),
+          typeIds.sub ? getvaluebyselecttypeid(typeIds.sub) : Promise.resolve({ data: [] }),
+          typeIds.anesthe ? getvaluebyselecttypeid(typeIds.anesthe) : Promise.resolve({ data: [] }),
+          typeIds.anestheAssist ? getvaluebyselecttypeid(typeIds.anestheAssist) : Promise.resolve({ data: [] }),
+          typeIds.physician ? getvaluebyselecttypeid(typeIds.physician) : Promise.resolve({ data: [] }),
+          typeIds.nurse ? getvaluebyselecttypeid(typeIds.nurse) : Promise.resolve({ data: [] }),
+          typeIds.staff ? getvaluebyselecttypeid(typeIds.staff) : Promise.resolve({ data: [] }),
+          typeIds.diagnosis ? getvaluebyselecttypeid(typeIds.diagnosis) : Promise.resolve({ data: [] }),
+        ]);
+        if (!active) return;
+        setPrefixOptions(parseSelectOptions((prefixRes as { data?: unknown })?.data ?? prefixRes));
+        setNationalityOptions(parseSelectOptions((nationalityRes as { data?: unknown })?.data ?? nationalityRes));
+        setSexOptions(parseSelectOptions((sexRes as { data?: unknown })?.data ?? sexRes));
+        setPatientTypeOptions(parseSelectOptions((patientTypeRes as { data?: unknown })?.data ?? patientTypeRes));
+        setProcedureRoomOptions(parseSelectOptions((procedureRoomRes as { data?: unknown })?.data ?? procedureRoomRes));
+        setProcedureOptions(parseSelectOptions((procedureRes as { data?: unknown })?.data ?? procedureRes));
+        setMainProcedureOptions(parseSelectOptions((mainProcedureRes as { data?: unknown })?.data ?? mainProcedureRes));
+        setFinancialOptions(parseSelectOptions((financialRes as { data?: unknown })?.data ?? financialRes));
+        setIndicationOptions(parseSelectOptions((indicationRes as { data?: unknown })?.data ?? indicationRes));
+        setCaseTypeOptions(parseSelectOptions((caseTypeRes as { data?: unknown })?.data ?? caseTypeRes));
+        setRapidOptions(parseSelectOptions((rapidRes as { data?: unknown })?.data ?? rapidRes));
+        setHistopathOptions(parseSelectOptions((histopathRes as { data?: unknown })?.data ?? histopathRes));
+        setSubOptions(parseSelectOptions((subRes as { data?: unknown })?.data ?? subRes));
+        setAnestheOptions(parseSelectOptions((anestheRes as { data?: unknown })?.data ?? anestheRes));
+        setAnestheAssistOptions(parseSelectOptions((anestheAssistRes as { data?: unknown })?.data ?? anestheAssistRes));
+        setPhysicianOptions(parseSelectOptions((physicianRes as { data?: unknown })?.data ?? physicianRes));
+        setNurseOptions(parseSelectOptions((nurseRes as { data?: unknown })?.data ?? nurseRes));
+        setStaffOptions(parseSelectOptions((staffRes as { data?: unknown })?.data ?? staffRes));
+        setDiagnosisOptions(parseSelectOptions((diagnosisRes as { data?: unknown })?.data ?? diagnosisRes));
+      } catch {
+        if (!active) return;
+        setPrefixOptions([]);
+        setNationalityOptions([]);
+        setSexOptions([]);
+        setPatientTypeOptions([]);
+        setProcedureRoomOptions([]);
+        setProcedureOptions([]);
+        setMainProcedureOptions([]);
+        setFinancialOptions([]);
+        setIndicationOptions([]);
+        setCaseTypeOptions([]);
+        setRapidOptions([]);
+        setHistopathOptions([]);
+        setSubOptions([]);
+        setAnestheOptions([]);
+        setAnestheAssistOptions([]);
+        setPhysicianOptions([]);
+        setNurseOptions([]);
+        setStaffOptions([]);
+        setDiagnosisOptions([]);
+      } finally {
+        if (active) setProcedureRoomLoading(false);
+        if (active) setOptionsLoading(false);
+      }
+    };
+    loadSelectOptions();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!caseForm.patient) return;
+    setCaseForm((prev) => {
+      if (!prev.patient) return prev;
+      const hydrated = hydratePatientLabels(prev.patient);
+      if (
+        hydrated.prefix === prev.patient.prefix &&
+        hydrated.nationality === prev.patient.nationality &&
+        hydrated.sex === prev.patient.sex &&
+        hydrated.patientType === prev.patient.patientType
+      ) {
+        return prev;
+      }
+      return { ...prev, patient: hydrated };
+    });
+  }, [caseForm.patient, hydratePatientLabels]);
 
   useEffect(() => {
     let active = true;
@@ -526,7 +873,8 @@ export default function Page() {
       if (!rangeValid) return;
       setDashboardLoading(true);
       setApiError(null);
-      const payload = { datefrom: rangeFrom, dateto: rangeTo };
+      const payload: Record<string, string> = { datefrom: rangeFrom, dateto: rangeTo };
+      if (procedureRoomFilter) payload.procedureroomid = procedureRoomFilter;
       const response = await postCalendagetdata(payload);
       if (!active) return;
       if ((response as { error?: unknown })?.error) {
@@ -543,7 +891,7 @@ export default function Page() {
     return () => {
       active = false;
     };
-  }, [rangeFrom, rangeTo, rangeValid]);
+  }, [rangeFrom, rangeTo, rangeValid, procedureRoomFilter]);
 
   useEffect(() => {
     let active = true;
@@ -563,7 +911,11 @@ export default function Page() {
       }
 
       const rangeEndExclusive = addDays(rangeEnd, 1);
-      const payload = { datefrom: isoFromDate(rangeStart), dateto: isoFromDate(rangeEndExclusive) };
+      const payload: Record<string, string> = {
+        datefrom: isoFromDate(rangeStart),
+        dateto: isoFromDate(rangeEndExclusive),
+      };
+      if (procedureRoomFilter) payload.procedureroomid = procedureRoomFilter;
       setMonthLoading(true);
       setApiError(null);
       const response = await postCalendagetdata(payload);
@@ -582,12 +934,12 @@ export default function Page() {
     return () => {
       active = false;
     };
-  }, [calendarDate, view]);
+  }, [calendarDate, view, procedureRoomFilter]);
 
   useEffect(() => {
-    if (selectedEvent || monthEvents.length === 0) return;
-    setSelectedEvent(monthEvents[0]);
-  }, [monthEvents, selectedEvent]);
+    if (selectedEvent || filteredMonthEvents.length === 0) return;
+    setSelectedEvent(filteredMonthEvents[0]);
+  }, [filteredMonthEvents, selectedEvent]);
 
   useEffect(() => {
     if (!modalOpen || modalMode !== "edit") return;
@@ -624,7 +976,12 @@ export default function Page() {
     Swal.close();
 
     if (!(response as { error?: unknown })?.error) {
-      const patient = buildPatientFromResponse(hn, response);
+      const patient = buildPatientFromResponse(hn, response, {
+        prefixOptions,
+        nationalityOptions,
+        sexOptions,
+        patientTypeOptions,
+      });
       if (patient) {
         setCaseForm((prev) => ({ ...prev, hn, patient }));
         setPatientStatus("found");
@@ -691,13 +1048,24 @@ export default function Page() {
       Swal.fire({ icon: "error", title: "กรุณาใส่ HN ที่มีข้อมูลก่อน" });
       return;
     }
+
+    Swal.fire({
+      title: modalMode === "edit" ? "บันทึกข้อมูล" : "เพิ่มข้อมูล",
+      text: "กำลังบันทึกข้อมูล...",
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
     const reg = caseForm.registration;
     const start = new Date(`${reg.operationDate}T${reg.timeFrom || "09:00"}:00`);
     const end = new Date(`${reg.operationDate}T${reg.timeTo || "10:00"}:00`);
     const patientName = toFullName(caseForm.patient) || "ไม่ระบุชื่อ";
-    const procedureLabel = caseForm.procedure.mainProcedure || caseForm.procedure.procedure || "Procedure";
-    const roomLabel = caseForm.procedure.room || "Room";
-    const physicianLabel = caseForm.physician.physician || "ไม่ระบุแพทย์";
+    const procedureLabel =
+      getOptionLabel(mainProcedureOptions, caseForm.procedure.mainProcedure) ||
+      getOptionLabel(procedureOptions, caseForm.procedure.procedure) ||
+      "Procedure";
+    const roomLabel = getOptionLabel(procedureRoomOptions, caseForm.procedure.room) || "Room";
+    const physicianLabel = getOptionLabel(physicianOptions, caseForm.physician.physician) || "ไม่ระบุแพทย์";
     const meta: CaseMeta = {
       hn: caseForm.hn,
       patient: caseForm.patient,
@@ -720,15 +1088,73 @@ export default function Page() {
       meta,
     };
 
+    const derivedAge = caseForm.patient?.age || (caseForm.patient?.dob ? calculateAgeFromDob(caseForm.patient.dob) : "");
+    const payload: Record<string, string | null> = {
+      hn: caseForm.hn.trim() || null,
+      age: derivedAge || null,
+      registerdate: reg.registerDate || null,
+      registertime: reg.registerTime || null,
+      appointmentdate: reg.appointmentDate || null,
+      appointmenttime: reg.appointmentTime || null,
+      casedate: reg.operationDate || null,
+      casetimefrom: reg.timeFrom || null,
+      casetimeto: reg.timeTo || null,
+      casenumber: reg.caseNo || null,
+      procedureroomid: caseForm.procedure.room || null,
+      mainprocedureid: caseForm.procedure.mainProcedure || caseForm.procedure.procedure || null,
+      financialid: caseForm.procedure.financial || null,
+      indicationid: caseForm.procedure.indication || null,
+      rapidtestresultid: caseForm.procedure.rapid || null,
+      histopathologyid: caseForm.procedure.histopath || null,
+      subprocedureid: caseForm.procedure.sub || null,
+      patienttypeopdid: caseForm.procedure.caseType || null,
+      anesthesiamethodid: caseForm.procedure.anesthe || null,
+      anesthetistid: caseForm.procedure.anestheAssist || null,
+      physicians1id: caseForm.physician.physician || null,
+      nurse1id: caseForm.physician.nurse1 || null,
+      nurse2id: caseForm.physician.nurse2 || null,
+      staff1id: caseForm.physician.staff1 || null,
+      staff2id: caseForm.physician.staff2 || null,
+      prediagnosisdx1id: caseForm.physician.dx1 || caseForm.physician.preDiagnosis || null,
+      prediagnosisdx2id: caseForm.physician.dx2 || null,
+    };
+
+    const response =
+      modalMode === "edit" && editingEventId
+        ? await putCalendarCase(editingEventId, payload)
+        : await postCalendarCase(payload);
+
+    if ((response as { error?: unknown })?.error) {
+      Swal.fire({
+        icon: "error",
+        title: "บันทึกข้อมูลไม่สำเร็จ",
+        text: (response as { message?: string })?.message || "โปรดลองใหม่อีกครั้ง",
+      });
+      return;
+    }
+    if ((response as { status?: boolean })?.status === false) {
+      Swal.fire({
+        icon: "error",
+        title: "บันทึกข้อมูลไม่สำเร็จ",
+        text: (response as { message?: string })?.message || "โปรดลองใหม่อีกครั้ง",
+      });
+      return;
+    }
+
+    const updatedRaw = (response as { data?: unknown })?.data ?? response;
+    const updatedItems = Array.isArray(updatedRaw) ? updatedRaw : updatedRaw ? [updatedRaw] : [];
+    const updatedEvents = updatedItems.length ? toCaseItems({ data: updatedItems }).map(toCalendarEvent) : [];
+    const savedEvent = updatedEvents[0] ?? nextEvent;
+
     const upsertEventList = (events: BigCalendarEvent[]) => {
       if (modalMode === "edit" && editingEventId) {
-        return events.map((event) => (event.id === editingEventId ? nextEvent : event));
+        return events.map((event) => (event.id === editingEventId ? savedEvent : event));
       }
-      return [...events, nextEvent];
+      return [...events, savedEvent];
     };
     setDashboardEvents(upsertEventList);
     setMonthEvents(upsertEventList);
-    setSelectedEvent(nextEvent);
+    setSelectedEvent(savedEvent);
 
     Swal.fire({
       icon: "success",
@@ -762,6 +1188,20 @@ export default function Page() {
   const headerRangeLabel = rangeValid
     ? `${formatThaiDisplay(rangeFrom)} – ${formatThaiDisplay(rangeTo)}`
     : "ยังไม่กำหนดช่วง";
+  const todayIso = isoFromDate(today);
+  const weekFromIso = todayIso;
+  const weekToIso = isoFromDate(addDays(today, 6));
+  const monthFromIso = isoFromDate(startOfMonth(today));
+  const monthToIso = isoFromDate(endOfMonth(today));
+  const isTodayActive = rangeFrom === todayIso && rangeTo === todayIso;
+  const isWeekActive = rangeFrom === weekFromIso && rangeTo === weekToIso;
+  const isMonthActive = rangeFrom === monthFromIso && rangeTo === monthToIso;
+  const quickRangeClass = (active: boolean) =>
+    `rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] transition ${
+      active
+        ? "border-teal-400 bg-teal-500 text-white shadow-[0_8px_18px_rgba(20,184,166,0.25)]"
+        : "border-slate-200 bg-white text-slate-600 hover:border-teal-300 hover:text-teal-700"
+    }`;
 
   const handleMove = (direction: -1 | 1) => {
     setCalendarDate((prev) => {
@@ -853,15 +1293,52 @@ export default function Page() {
                   {headerRangeLabel}
                 </p>
                 <p className="text-xs text-slate-500">รวม {rangeValid ? `${rangeDays} วัน` : "ยังไม่กำหนด"} · {eventsInRange.length} เคส</p>
-                <button
-                  onClick={() => {
-                    setRangeFrom(isoFromDate(today));
-                    setRangeTo(isoFromDate(addDays(today, 6)));
-                  }}
-                  className="mt-3 rounded-full border border-teal-200 bg-teal-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
-                >
-                  สัปดาห์นี้
-                </button>
+
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      setRangeFrom(todayIso);
+                      setRangeTo(todayIso);
+                    }}
+                    className={quickRangeClass(isTodayActive)}
+                  >
+                    วันนี้
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRangeFrom(weekFromIso);
+                      setRangeTo(weekToIso);
+                    }}
+                    className={quickRangeClass(isWeekActive)}
+                  >
+                    สัปดาห์นี้
+                  </button>
+                  <button
+                    onClick={() => {
+                      setRangeFrom(monthFromIso);
+                      setRangeTo(monthToIso);
+                    }}
+                    className={quickRangeClass(isMonthActive)}
+                  >
+                    เดือนนี้
+                  </button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  <label className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Procedure Room</label>
+                  <select
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700 outline-none"
+                    value={procedureRoomFilter}
+                    onChange={(event) => setProcedureRoomFilter(event.target.value)}
+                    disabled={procedureRoomLoading}
+                  >
+                    <option value="">{procedureRoomLoading ? "กำลังโหลด..." : "ทั้งหมด"}</option>
+                    {procedureRoomOptions.map((opt) => (
+                      <option key={opt.id} value={opt.id}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="space-y-3 text-sm text-slate-700">
@@ -991,7 +1468,7 @@ export default function Page() {
                 <div className="flex flex-1 flex-col rounded-[30px] border border-slate-200 bg-white/90 p-4 shadow-xl">
                   <Calendar
                     localizer={localizer}
-                    events={monthEvents}
+                    events={filteredMonthEvents}
                     startAccessor="start"
                     endAccessor="end"
                     views={[Views.MONTH, Views.WEEK, Views.DAY, Views.AGENDA]}
@@ -1123,6 +1600,14 @@ export default function Page() {
                     <label className={labelClass}>Sex</label>
                     <input className={fieldClass} value={caseForm.patient?.sex ?? ""} readOnly disabled />
                   </div>
+                  <div className="col-span-12 lg:col-span-4">
+                    <label className={labelClass}>Patient Type</label>
+                    <input className={fieldClass} value={caseForm.patient?.patientType ?? ""} readOnly disabled />
+                  </div>
+                  <div className="col-span-12">
+                    <label className={labelClass}>Note</label>
+                    <textarea className={fieldClass} value={caseForm.patient?.note ?? ""} rows={2} readOnly disabled />
+                  </div>
                   {patientStatus === "notfound" && (
                     <div className="col-span-12 text-sm text-rose-500">
                       ไม่พบข้อมูล HN นี้ กรุณาตรวจสอบอีกครั้ง
@@ -1235,9 +1720,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกห้อง"}</option>
                       {!optionsLoading &&
-                        dropdownMock.rooms.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        procedureRoomOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1252,9 +1737,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกหัตถการ"}</option>
                       {!optionsLoading &&
-                        dropdownMock.procedures.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        procedureOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1269,9 +1754,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก Main"}</option>
                       {!optionsLoading &&
-                        dropdownMock.mainProcedures.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        mainProcedureOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1287,9 +1772,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกสิทธิ์"}</option>
                       {!optionsLoading &&
-                        dropdownMock.financials.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        financialOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1304,9 +1789,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก Indication"}</option>
                       {!optionsLoading &&
-                        dropdownMock.indications.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        indicationOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1321,9 +1806,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกประเภท"}</option>
                       {!optionsLoading &&
-                        dropdownMock.caseTypes.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        caseTypeOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1339,9 +1824,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก Rapid"}</option>
                       {!optionsLoading &&
-                        dropdownMock.rapid.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        rapidOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1356,9 +1841,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก Histopath"}</option>
                       {!optionsLoading &&
-                        dropdownMock.histopath.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        histopathOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1373,9 +1858,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก Sub"}</option>
                       {!optionsLoading &&
-                        dropdownMock.subs.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        subOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1391,9 +1876,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกวิสัญญี"}</option>
                       {!optionsLoading &&
-                        dropdownMock.anesthes.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        anestheOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1408,9 +1893,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกผู้ช่วย"}</option>
                       {!optionsLoading &&
-                        dropdownMock.anestheAssists.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        anestheAssistOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1433,9 +1918,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกแพทย์"}</option>
                       {!optionsLoading &&
-                        dropdownMock.physicians.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        physicianOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1450,9 +1935,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกพยาบาล"}</option>
                       {!optionsLoading &&
-                        dropdownMock.nurses.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        nurseOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1467,9 +1952,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกพยาบาล"}</option>
                       {!optionsLoading &&
-                        dropdownMock.nurses.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        nurseOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1485,9 +1970,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกเจ้าหน้าที่"}</option>
                       {!optionsLoading &&
-                        dropdownMock.staffs.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        staffOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1502,9 +1987,9 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือกเจ้าหน้าที่"}</option>
                       {!optionsLoading &&
-                        dropdownMock.staffs.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        staffOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
@@ -1519,30 +2004,46 @@ export default function Page() {
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก"}</option>
                       {!optionsLoading &&
-                        dropdownMock.diagnoses.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
+                        diagnosisOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
                           </option>
                         ))}
                     </select>
                   </div>
                   <div className="col-span-12 md:col-span-6">
                     <label className={labelClass}>Dx1</label>
-                    <input
+                    <select
                       className={fieldClass}
-                      disabled={fieldsDisabled}
+                      disabled={fieldsDisabled || optionsLoading}
                       value={caseForm.physician.dx1}
                       onChange={(e) => updatePhysician("dx1", e.target.value)}
-                    />
+                    >
+                      <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก Dx1"}</option>
+                      {!optionsLoading &&
+                        diagnosisOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                    </select>
                   </div>
                   <div className="col-span-12 md:col-span-6">
                     <label className={labelClass}>Dx2</label>
-                    <input
+                    <select
                       className={fieldClass}
-                      disabled={fieldsDisabled}
+                      disabled={fieldsDisabled || optionsLoading}
                       value={caseForm.physician.dx2}
                       onChange={(e) => updatePhysician("dx2", e.target.value)}
-                    />
+                    >
+                      <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก Dx2"}</option>
+                      {!optionsLoading &&
+                        diagnosisOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                    </select>
                   </div>
                 </div>
               </section>
