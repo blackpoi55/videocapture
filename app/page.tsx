@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState , Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Select, { components, SingleValue } from "react-select";
 import Swal from "sweetalert2";
@@ -8,6 +8,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { getCasebyid, getSelectTypes, getvaluebyselecttypeid } from "@/action/api";
 import { SELECT_TYPE_CODES, SELECT_TYPE_IDS } from "@/config";
+import ReportClient from "./report/report-client";
 
 /** ---------------------------
  *  Small IndexedDB helper (store FileSystem handles)
@@ -3461,13 +3462,14 @@ export default function Page() {
   }
 
   return (
-    <main className="min-h-screen w-screen overflow-x-hidden bg-slate-950 text-white">
-      {/* background */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -top-40 -left-40 h-[520px] w-[520px] rounded-full bg-emerald-500/20 blur-[120px]" />
-        <div className="absolute top-1/4 -right-40 h-[620px] w-[620px] rounded-full bg-indigo-500/18 blur-[140px]" />
-        <div className="absolute bottom-[-180px] left-1/4 h-[700px] w-[700px] rounded-full bg-fuchsia-500/14 blur-[160px]" />
-      </div>
+<>
+      <main className="min-h-screen w-screen overflow-x-hidden bg-slate-950 text-white">
+        {/* background */}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute -top-40 -left-40 h-[520px] w-[520px] rounded-full bg-emerald-500/20 blur-[120px]" />
+          <div className="absolute top-1/4 -right-40 h-[620px] w-[620px] rounded-full bg-indigo-500/18 blur-[140px]" />
+          <div className="absolute bottom-[-180px] left-1/4 h-[700px] w-[700px] rounded-full bg-fuchsia-500/14 blur-[160px]" />
+        </div>
 
       <div className="relative h-full w-full p-5">
         {/* Top bar */}
@@ -3830,5 +3832,10 @@ export default function Page() {
         }}
       />
     </main>
+
+      <Suspense fallback={null}>
+        <ReportClient />
+      </Suspense>
+      </>
   );
 }

@@ -1,6 +1,8 @@
 import { Suspense } from "react";
 
-import ReportNewClient from "./reportnew-client";
+
+import ReportNewCRClient from "../../components/report_new/reportnewCR-client";
+import SecondPage from "../../components/report_new/secondCRpage";
 
 export default function ReportPage() {
   return (
@@ -16,7 +18,9 @@ export default function ReportPage() {
         </main>
       }
     >
-      <ReportNewClient />
+
+    <ReportNewCRClient />
+    <SecondPage />
     </Suspense>
   );
 }
