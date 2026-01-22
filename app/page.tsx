@@ -6,7 +6,7 @@ import Select, { components, SingleValue } from "react-select";
 import Swal from "sweetalert2";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { getCasebyid, getSelectTypes, getvaluebyselecttypeid } from "@/action/api";
+import { getCasebyid, getpersonhistorybyid, getSelectTypes, getvaluebyselecttypeid } from "@/action/api";
 import { SELECT_TYPE_CODES, SELECT_TYPE_IDS } from "@/config";
 import ReportClient from "./report/report-client";
 
@@ -2054,6 +2054,7 @@ function PageContent() {
     let active = true;
     (async () => {
       const response = await getCasebyid(caseIdParam);
+      const response1 = await getpersonhistorybyid(caseIdParam);
       if (!active) return;
       if ((response as { error?: unknown })?.error) {
         alertErr("ดึงข้อมูลเคสไม่สำเร็จ", (response as { message?: string })?.message || "โปรดลองใหม่อีกครั้ง");
@@ -3832,10 +3833,6 @@ function PageContent() {
         }}
       />
     </main>
-
-      <Suspense fallback={null}>
-        <ReportClient />
-      </Suspense>
       </>
   );
 }
