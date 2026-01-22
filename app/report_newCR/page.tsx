@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-
+import PrintButton from "@/components/printbuttom/printbut";
 import ReportNewCRClient from "../../components/report_new/reportnewCR-client";
 import SecondPage from "../../components/report_new/secondCRpage";
 
@@ -19,6 +19,7 @@ export default function ReportPage() {
       }
     >
 
+    <PrintButton />
     <ReportNewCRClient />
     <SecondPage />
     </Suspense>
