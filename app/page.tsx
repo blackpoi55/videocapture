@@ -1804,7 +1804,7 @@ function Thumb({ file }: { file: FileItem }) {
 /** ---------------------------
  *  Main Page
  *  --------------------------*/
-export default function Page() {
+function PageContent() {
   const [mounted, setMounted] = useState(false);
   const searchParams = useSearchParams();
 
@@ -3837,5 +3837,13 @@ export default function Page() {
         <ReportClient />
       </Suspense>
       </>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <PageContent />
+    </Suspense>
   );
 }
