@@ -58,6 +58,9 @@ export const postCalendarCase = (data: unknown) => {
 export const getCasebyid = (id: string) => {
   return GET(`/history/${id}`);
 };
+export const getpersonhistorybyid = (id: string) => {
+  return GET(`/history/getpersonhistorybyid/${id}`);
+};
 export const putCalendarCase = (id: string, data: unknown) => {
   return PUT(`/history/${id}`, data);
 };
