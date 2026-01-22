@@ -59,7 +59,7 @@ export default function Page() {
       timer: 1500,
       showConfirmButton: false,
     });
-    router.push("/calenda");
+    router.push("/calendar");
   };
 
   return (

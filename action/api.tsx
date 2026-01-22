@@ -77,3 +77,8 @@ export const putcamerapreset = (id: string, data: unknown) => {
 export const deletecamerapreset = (id: string) => {
   return DELETE(`/cameras/${id}`);
 };
+
+export const updateCamera = (data: unknown) => {
+  return POST("/history/updateCamera", data);
+};
+ 

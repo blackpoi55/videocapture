@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState , Suspense } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Select, { components, SingleValue } from "react-select";
 import Swal from "sweetalert2";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { getpersonhistorybyid, getSelectTypes, getvaluebyselecttypeid } from "@/action/api";
+import { getcamerapreset, getpersonhistorybyid, getSelectTypes, getvaluebyselecttypeid, updateCamera } from "@/action/api";
 import { SELECT_TYPE_CODES, SELECT_TYPE_IDS } from "@/config";
 import ReportClient from "./report/report-client";
 
@@ -205,7 +205,41 @@ type SelectOption = {
   label: string;
 };
 
+type CameraPresetValues = {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  sharpness: number;
+  cropLeft: number;
+  cropRight: number;
+  cropTop: number;
+  cropBottom: number;
+};
+
+type CameraPresetOption = {
+  id: string;
+  name: string;
+  values: CameraPresetValues;
+};
+
+type CaseCameraData = {
+  presetId: string;
+  cameraName: string;
+  values: CameraPresetValues;
+};
+
 type SelectTypeKey = keyof typeof SELECT_TYPE_IDS;
+
+const DEFAULT_CAMERA_VALUES: CameraPresetValues = {
+  brightness: 100,
+  contrast: 100,
+  saturation: 100,
+  sharpness: 50,
+  cropLeft: 0,
+  cropRight: 0,
+  cropTop: 0,
+  cropBottom: 0,
+};
 
 function parseSelectTypes(raw: unknown): SelectType[] {
   const rows = Array.isArray(raw) ? raw : [];
@@ -233,6 +267,66 @@ function parseSelectOptions(raw: unknown): SelectOption[] {
     })
     .filter(Boolean) as SelectOption[];
 }
+
+const isRecordValue = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const parseValuesObject = (value: unknown): Record<string, unknown> | null => {
+  if (isRecordValue(value)) return value;
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return isRecordValue(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
+const toNumber = (value: unknown, fallback: number) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+};
+
+const clampCameraValue = (value: unknown, min: number, max: number, fallback: number) => {
+  const base = toNumber(value, fallback);
+  return Math.min(max, Math.max(min, base));
+};
+
+const parseCameraPresetOptions = (raw: unknown): CameraPresetOption[] => {
+  const rows = Array.isArray(raw) ? raw : isRecordValue(raw) ? [raw] : [];
+  return rows
+    .map((item, index) => {
+      const row = isRecordValue(item) ? item : {};
+      const valuesObject =
+        parseValuesObject(row.values ?? row.value ?? row.config ?? row.setting ?? row.settings) ?? {};
+      const source = { ...row, ...valuesObject };
+      const id = normalizeText(
+        row.id ?? row.cameraid ?? row.camera_id ?? row.cameraId ?? row.presetid ?? row.cameraPresetId
+      ).trim();
+      const name =
+        normalizeText(row.name ?? row.camera_name ?? row.cameraName ?? row.presetname ?? row.label ?? row.title).trim() ||
+        `Preset ${index + 1}`;
+      if (!id) return null;
+      const values: CameraPresetValues = {
+        brightness: clampCameraValue(source.brightness ?? source.bright, 0, 200, DEFAULT_CAMERA_VALUES.brightness),
+        contrast: clampCameraValue(source.contrast, 50, 200, DEFAULT_CAMERA_VALUES.contrast),
+        saturation: clampCameraValue(source.saturation ?? source.saturate, 0, 200, DEFAULT_CAMERA_VALUES.saturation),
+        sharpness: clampCameraValue(source.sharpness, 0, 100, DEFAULT_CAMERA_VALUES.sharpness),
+        cropLeft: clampCameraValue(source.cropLeft ?? source.crop_left ?? source.cropleft, 0, 40, DEFAULT_CAMERA_VALUES.cropLeft),
+        cropRight: clampCameraValue(source.cropRight ?? source.crop_right ?? source.cropright, 0, 40, DEFAULT_CAMERA_VALUES.cropRight),
+        cropTop: clampCameraValue(source.cropTop ?? source.crop_top ?? source.croptop, 0, 40, DEFAULT_CAMERA_VALUES.cropTop),
+        cropBottom: clampCameraValue(source.cropBottom ?? source.crop_bottom ?? source.cropbottom, 0, 40, DEFAULT_CAMERA_VALUES.cropBottom),
+      };
+      return { id, name, values };
+    })
+    .filter(Boolean) as CameraPresetOption[];
+};
 
 function resolveTypeId(key: SelectTypeKey, types: SelectType[]) {
   const configured = SELECT_TYPE_IDS[key];
@@ -271,6 +365,7 @@ type CasePrefill = {
 
 type CaseDetail = {
   caseId: string;
+  camera_id: string;
   hn: string;
   an: string;
   caseNo: string;
@@ -1968,6 +2063,14 @@ function PageContent() {
   const [camCropRight, setCamCropRight] = useState(camDefaults.cropRight);
   const [camCropTop, setCamCropTop] = useState(camDefaults.cropTop);
   const [camCropBottom, setCamCropBottom] = useState(camDefaults.cropBottom);
+  const [cameraPresetOptions, setCameraPresetOptions] = useState<CameraPresetOption[]>([]);
+  const [cameraPresetId, setCameraPresetId] = useState("");
+  const [cameraPresetMode, setCameraPresetMode] = useState<"preset" | "edit">("preset");
+  const [cameraPresetName, setCameraPresetName] = useState("");
+  const [cameraPresetLoading, setCameraPresetLoading] = useState(false);
+  const [cameraPresetError, setCameraPresetError] = useState<string | null>(null);
+  const [caseCameraData, setCaseCameraData] = useState<CaseCameraData | null>(null);
+  const caseCameraAppliedRef = useRef<string | null>(null);
   const [camAdjustOpen, setCamAdjustOpen] = useState(false);
   const camAdjustLoadingRef = useRef<string | null>(null);
   const CAM_ADJUST_STORAGE_PREFIX = "vcapture_cam_adjust_";
@@ -1976,6 +2079,26 @@ function PageContent() {
   const renderCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const renderCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const renderLoopRef = useRef<number | null>(null);
+  const applyCameraValues = useCallback(
+    (values: CameraPresetValues) => {
+      setCamBrightness(clampCameraValue(values.brightness, 0, 200, camDefaults.brightness));
+      setCamContrast(clampCameraValue(values.contrast, 50, 200, camDefaults.contrast));
+      setCamSaturation(clampCameraValue(values.saturation, 0, 200, camDefaults.saturation));
+      setCamSharpness(clampCameraValue(values.sharpness, 0, 100, camDefaults.sharpness));
+      setCamCropLeft(clampCameraValue(values.cropLeft, 0, 40, camDefaults.cropLeft));
+      setCamCropRight(clampCameraValue(values.cropRight, 0, 40, camDefaults.cropRight));
+      setCamCropTop(clampCameraValue(values.cropTop, 0, 40, camDefaults.cropTop));
+      setCamCropBottom(clampCameraValue(values.cropBottom, 0, 40, camDefaults.cropBottom));
+    },
+    [camDefaults]
+  );
+
+  const markCameraEdit = useCallback(() => {
+    if (cameraPresetMode === "edit") return;
+    setCameraPresetMode("edit");
+    setCameraPresetName("edit");
+    if (caseIdParam) caseCameraAppliedRef.current = caseIdParam;
+  }, [cameraPresetMode, caseIdParam]);
 
   // Modals
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -2045,12 +2168,43 @@ function PageContent() {
   }, [caseIdParam]);
 
   useEffect(() => {
+    let active = true;
+    const loadCameraPresets = async () => {
+      setCameraPresetLoading(true);
+      setCameraPresetError(null);
+      try {
+        const response = await getcamerapreset();
+        if ((response as { error?: unknown })?.error) {
+          throw new Error((response as { message?: string })?.message || "โหลดพรีเซ็ตไม่สำเร็จ");
+        }
+        const raw = (response as { data?: unknown })?.data ?? response;
+        const presets = parseCameraPresetOptions(raw);
+        if (!active) return;
+        setCameraPresetOptions(presets);
+      } catch (err) {
+        if (!active) return;
+        setCameraPresetOptions([]);
+        setCameraPresetError(err instanceof Error ? err.message : "โหลดพรีเซ็ตไม่สำเร็จ");
+      } finally {
+        if (active) setCameraPresetLoading(false);
+      }
+    };
+    loadCameraPresets();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!caseIdParam) {
       setCaseDetail(null);
       setCasePrefill(null);
+      setCaseCameraData(null);
+      caseCameraAppliedRef.current = null;
       return;
     }
     casePrefillAppliedRef.current = null;
+    caseCameraAppliedRef.current = null;
     let active = true;
     (async () => {
       const response = await getpersonhistorybyid(caseIdParam);
@@ -2077,10 +2231,25 @@ function PageContent() {
       const note = normalizeText(row.note);
       const caseNo = normalizeText(row.casenumber);
       const date = parseApiDate(row.casedate);
+      const cameraId = normalizeText(row.camera_id ?? row.cameraId ?? row.cameraid);
+      const cameraName = normalizeText(row.camera_name);
+      const presetId = normalizeText(row.preset);
+      const cameraValues: CameraPresetValues = {
+        brightness: clampCameraValue(row.brightness, 0, 200, camDefaults.brightness),
+        contrast: clampCameraValue(row.contrast, 50, 200, camDefaults.contrast),
+        saturation: clampCameraValue(row.saturation, 0, 200, camDefaults.saturation),
+        sharpness: clampCameraValue(row.sharpness, 0, 100, camDefaults.sharpness),
+        cropLeft: clampCameraValue(row.cropLeft, 0, 40, camDefaults.cropLeft),
+        cropRight: clampCameraValue(row.cropRight, 0, 40, camDefaults.cropRight),
+        cropTop: clampCameraValue(row.cropTop, 0, 40, camDefaults.cropTop),
+        cropBottom: clampCameraValue(row.cropBottom, 0, 40, camDefaults.cropBottom),
+      };
       const prefill: CasePrefill = { caseId: caseIdParam, hn, an, date };
       setCasePrefill(prefill);
+      setCaseCameraData({ presetId, cameraName, values: cameraValues });
       setCaseDetail({
         caseId: caseIdParam,
+        camera_id: cameraId,
         hn,
         an,
         caseNo,
@@ -2104,6 +2273,33 @@ function PageContent() {
       active = false;
     };
   }, [caseIdParam]);
+
+  useEffect(() => {
+    if (!caseIdParam || !caseCameraData) return;
+    if (caseCameraAppliedRef.current === caseIdParam) return;
+
+    const cameraName = caseCameraData.cameraName.trim().toLowerCase();
+    const presetId = caseCameraData.presetId;
+
+    if (cameraName && cameraName !== "edit" && presetId) {
+      const preset = cameraPresetOptions.find((opt) => opt.id === presetId);
+      if (preset) {
+        setCameraPresetMode("preset");
+        setCameraPresetId(preset.id);
+        setCameraPresetName(preset.name);
+        applyCameraValues(preset.values);
+        caseCameraAppliedRef.current = caseIdParam;
+        return;
+      }
+      if (cameraPresetLoading) return;
+    }
+
+    setCameraPresetMode("edit");
+    setCameraPresetName("edit");
+    setCameraPresetId(presetId);
+    applyCameraValues(caseCameraData.values);
+    caseCameraAppliedRef.current = caseIdParam;
+  }, [caseCameraData, cameraPresetOptions, caseIdParam, applyCameraValues, cameraPresetLoading]);
 
   const persistLastSelection = useCallback(() => {
     if (!dateSelected?.value) return;
@@ -2179,7 +2375,7 @@ function PageContent() {
         typeof v === "number" && Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : fallback;
       const br = clamp(data.brightness, 0, 200, camDefaults.brightness);
       const ct = clamp(data.contrast, 50, 200, camDefaults.contrast);
-      const sa = clamp(data.saturation, 50, 200, camDefaults.saturation);
+      const sa = clamp(data.saturation, 0, 200, camDefaults.saturation);
       const sh = clamp(data.sharpness, 0, 100, camDefaults.sharpness);
       setCamBrightness(br);
       setCamContrast(ct);
@@ -2288,119 +2484,222 @@ function PageContent() {
     renderLoopRef.current = requestAnimationFrame(draw);
   }, [getCropPixels, stopRenderLoop]);
 
-  const CameraAdjustControls = () => (
-    <div className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-[11px] text-white/70 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
-      <div className="flex items-center justify-between mb-2">
-        <span className="uppercase tracking-[0.08em] text-[10px] text-white/60">Adjust</span>
-        <span className="text-white/40">Cam</span>
-      </div>
-      <div className="space-y-2">
-        {[
-          {
-            label: "Brightness",
-            value: camBrightness,
-            min: 0,
-            max: 200,
-            onChange: (v: number) => {
-              setCamBrightness(v);
-              // eslint-disable-next-line @typescript-eslint/no-floating-promises
-              applyCameraAdjust(v, camSharpness);
-            },
-            suffix: "%",
-          },
-          {
-            label: "Contrast",
-            value: camContrast,
-            min: 50,
-            max: 200,
-            onChange: (v: number) => setCamContrast(v),
-            suffix: "%",
-          },
-          {
-            label: "Saturate",
-            value: camSaturation,
-            min: 50,
-            max: 200,
-            onChange: (v: number) => setCamSaturation(v),
-            suffix: "%",
-          },
-          {
-            label: "Sharp",
-            value: camSharpness,
-            min: 0,
-            max: 100,
-            onChange: (v: number) => {
-              setCamSharpness(v);
-              // eslint-disable-next-line @typescript-eslint/no-floating-promises
-              applyCameraAdjust(camBrightness, v);
-            },
-            suffix: "",
-          },
-          {
-            label: "Crop L",
-            value: camCropLeft,
-            min: 0,
-            max: 40,
-            onChange: (v: number) => setCamCropLeft(v),
-            suffix: "%",
-          },
-          {
-            label: "Crop R",
-            value: camCropRight,
-            min: 0,
-            max: 40,
-            onChange: (v: number) => setCamCropRight(v),
-            suffix: "%",
-          },
-          {
-            label: "Crop T",
-            value: camCropTop,
-            min: 0,
-            max: 40,
-            onChange: (v: number) => setCamCropTop(v),
-            suffix: "%",
-          },
-          {
-            label: "Crop B",
-            value: camCropBottom,
-            min: 0,
-            max: 40,
-            onChange: (v: number) => setCamCropBottom(v),
-            suffix: "%",
-          },
-        ].map((it) => (
-          <div key={it.label} className="grid grid-cols-[66px_1fr_56px_44px] items-center gap-2">
-            <span className="text-white/65">{it.label}</span>
-            <input
-              type="range"
-              min={it.min}
-              max={it.max}
-              value={it.value}
-              onChange={(e) => it.onChange(Number(e.target.value))}
-              className="w-full min-w-0 accent-emerald-400"
-            />
-            <input
-              type="number"
-              min={it.min}
-              max={it.max}
-              value={it.value}
-              onChange={(e) => {
-                const raw = Number(e.target.value);
-                if (Number.isNaN(raw)) return;
-                const v = Math.min(it.max, Math.max(it.min, raw));
-                it.onChange(v);
-              }}
-              className="h-8 w-full min-w-0 rounded-lg border border-white/10 bg-white/[0.06] px-2 text-right text-white/90 outline-none"
-            />
-            <span className="text-right text-white/70">
-              {it.value}
-              {it.suffix}
-            </span>
+  const CameraAdjustControls = () => {
+    const presetValue = cameraPresetMode === "edit" ? "edit" : cameraPresetId;
+
+    const handlePresetChange = (nextId: string) => {
+      if (nextId === "edit") {
+        setCameraPresetMode("edit");
+        setCameraPresetName("edit");
+        return;
+      }
+      if (!nextId) {
+        setCameraPresetId("");
+        setCameraPresetName("");
+        return;
+      }
+      const preset = cameraPresetOptions.find((opt) => opt.id === nextId);
+      if (!preset) return;
+      setCameraPresetMode("preset");
+      setCameraPresetId(preset.id);
+      setCameraPresetName(preset.name);
+      applyCameraValues(preset.values);
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      applyCameraAdjust(preset.values.brightness, preset.values.sharpness);
+    };
+
+    const handleSaveCameraAdjust = () => {
+      const deviceId = deviceSelected?.value;
+      if (!deviceId) {
+        alertErr("ต้องเลือกกล้องก่อนบันทึก");
+        return;
+      }
+      const payload = {
+        caseId: caseIdParam || "",
+        camera_id: caseDetailView.camera_id || "",
+        camera_name: caseDetailView.camera_name || "",
+        brightness: camBrightness,
+        contrast: camContrast,
+        saturation: camSaturation,
+        sharpness: camSharpness,
+        cropLeft: camCropLeft,
+        cropRight: camCropRight,
+        cropTop: camCropTop,
+        cropBottom: camCropBottom,
+      };
+      console.log(payload)
+
+      try {
+        updateCamera(payload);
+        alertOk("บันทึกค่ากล้องแล้ว");
+      } catch (err) {
+        alertErr("บันทึกไม่สำเร็จ", err instanceof Error ? err.message : String(err));
+      }
+    };
+
+    return (
+      <div className="w-full rounded-2xl border border-white/8 bg-white/[0.04] px-3 py-2 text-[11px] text-white/70 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
+        <div className="mb-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
+          <div className="flex items-center justify-between mb-2">
+            <span className="uppercase tracking-[0.08em] text-[10px] text-white/60">Preset</span>
+            <span className="text-white/40">{cameraPresetMode === "edit" ? "Edit" : cameraPresetName || "Preset"}</span>
           </div>
-        ))}
+          {/* <select
+            className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white/90 outline-none"
+            value={presetValue}
+            onChange={(e) => handlePresetChange(e.target.value)}
+            disabled={cameraPresetLoading}
+          >
+            <option value="" style={{ color: "#0f172a" }}>
+              {cameraPresetLoading ? "กำลังโหลด..." : "เลือกพรีเซ็ต"}
+            </option>
+            <option value="edit" style={{ color: "#0f172a" }}>
+              แก้ไขเอง
+            </option>
+            {cameraPresetOptions.map((opt) => (
+              <option key={opt.id} value={opt.id} style={{ color: "#0f172a" }}>
+                {opt.name}
+              </option>
+            ))}
+          </select> */}
+          {cameraPresetError && <div className="mt-2 text-[10px] text-rose-300">{cameraPresetError}</div>}
+        </div>
+
+        <div className="flex items-center justify-between mb-2">
+          <span className="uppercase tracking-[0.08em] text-[10px] text-white/60">Adjust</span>
+          <span className="text-white/40">Cam</span>
+        </div>
+        <div className="space-y-2">
+          {[
+            {
+              label: "Brightness",
+              value: camBrightness,
+              min: 0,
+              max: 200,
+              onChange: (v: number) => {
+                markCameraEdit();
+                setCamBrightness(v);
+                // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                applyCameraAdjust(v, camSharpness);
+              },
+              suffix: "%",
+            },
+            {
+              label: "Contrast",
+              value: camContrast,
+              min: 50,
+              max: 200,
+              onChange: (v: number) => {
+                markCameraEdit();
+                setCamContrast(v);
+              },
+              suffix: "%",
+            },
+            {
+              label: "Saturate",
+              value: camSaturation,
+              min: 0,
+              max: 200,
+              onChange: (v: number) => {
+                markCameraEdit();
+                setCamSaturation(v);
+              },
+              suffix: "%",
+            },
+            {
+              label: "Sharp",
+              value: camSharpness,
+              min: 0,
+              max: 100,
+              onChange: (v: number) => {
+                markCameraEdit();
+                setCamSharpness(v);
+                // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                applyCameraAdjust(camBrightness, v);
+              },
+              suffix: "",
+            },
+            {
+              label: "Crop L",
+              value: camCropLeft,
+              min: 0,
+              max: 40,
+              onChange: (v: number) => {
+                markCameraEdit();
+                setCamCropLeft(v);
+              },
+              suffix: "%",
+            },
+            {
+              label: "Crop R",
+              value: camCropRight,
+              min: 0,
+              max: 40,
+              onChange: (v: number) => {
+                markCameraEdit();
+                setCamCropRight(v);
+              },
+              suffix: "%",
+            },
+            {
+              label: "Crop T",
+              value: camCropTop,
+              min: 0,
+              max: 40,
+              onChange: (v: number) => {
+                markCameraEdit();
+                setCamCropTop(v);
+              },
+              suffix: "%",
+            },
+            {
+              label: "Crop B",
+              value: camCropBottom,
+              min: 0,
+              max: 40,
+              onChange: (v: number) => {
+                markCameraEdit();
+                setCamCropBottom(v);
+              },
+              suffix: "%",
+            },
+          ].map((it) => (
+            <div key={it.label} className="grid grid-cols-[66px_1fr_56px_44px] items-center gap-2">
+              <span className="text-white/65">{it.label}</span>
+              <input
+                type="range"
+                min={it.min}
+                max={it.max}
+                value={it.value}
+                onChange={(e) => it.onChange(Number(e.target.value))}
+                className="w-full min-w-0 accent-emerald-400"
+              />
+              <input
+                type="number"
+                min={it.min}
+                max={it.max}
+                value={it.value}
+                onChange={(e) => {
+                  const raw = Number(e.target.value);
+                  if (Number.isNaN(raw)) return;
+                  const v = Math.min(it.max, Math.max(it.min, raw));
+                  it.onChange(v);
+                }}
+                className="h-8 w-full min-w-0 rounded-lg border border-white/10 bg-white/[0.06] px-2 text-right text-white/90 outline-none"
+              />
+              <span className="text-right text-white/70">
+                {it.value}
+                {it.suffix}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex items-center justify-end gap-2">
+          <PillButton onClick={handleSaveCameraAdjust}>บันทึก</PillButton>
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   /** ----- Root connect / disconnect ----- */
   const connectRoot = useCallback(async () => {
@@ -3191,6 +3490,8 @@ function PageContent() {
   const caseFolderReady = Boolean(originalDir && chooseDir);
   const caseDetailView = {
     caseId: caseDetail?.caseId || caseIdParam || "-",
+    camera_id: caseDetail?.camera_id || "",
+    camera_name: caseDetail?.camera_name || "",
     hn: caseDetail?.hn || hnInput || "-",
     an: caseDetail?.an || anInput || "-",
     caseNo: caseDetail?.caseNo || "-",
@@ -3420,7 +3721,7 @@ function PageContent() {
   }
 
   return (
-<>
+    <>
       <main className="min-h-screen w-screen overflow-x-hidden bg-slate-950 text-white">
         {/* background */}
         <div className="absolute inset-0 pointer-events-none">
@@ -3429,136 +3730,136 @@ function PageContent() {
           <div className="absolute bottom-[-180px] left-1/4 h-[700px] w-[700px] rounded-full bg-fuchsia-500/14 blur-[160px]" />
         </div>
 
-      <div className="relative h-full w-full p-5">
-        {/* Top bar */}
-        <div className="flex items-center justify-between gap-4 mb-4">
-          <div className="rounded-3xl border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.55)] px-5 py-4 w-full">
-            {showCaseDetails ? (
-              <GlassCard
-                title="รายละเอียดเคส"
-                right={
-                  <div className="flex items-center gap-2">
-                    <PillButton onClick={() => setCaseDetailCollapsed((prev) => !prev)}>
-                      {caseDetailCollapsed ? "ขยาย" : "ย่อ"}
-                    </PillButton>
-                    <PillButton onClick={openPicker} disabled={!caseFolderReady}>
-                      เลือก/จัดการรูป
-                    </PillButton>
-                    <PillButton onClick={refreshFiles} disabled={!originalDir}>
-                      Refresh Files
-                    </PillButton>
-                  </div>
-                }
-              >
-                {caseOptionLoading && (
-                  <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-white/50">กำลังโหลดชื่อ...</div>
-                )}
-                {caseOptionError && <div className="mb-2 text-[10px] text-rose-300">{caseOptionError}</div>}
+        <div className="relative h-full w-full p-5">
+          {/* Top bar */}
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.55)] px-5 py-4 w-full">
+              {showCaseDetails ? (
+                <GlassCard
+                  title="รายละเอียดเคส"
+                  right={
+                    <div className="flex items-center gap-2">
+                      <PillButton onClick={() => setCaseDetailCollapsed((prev) => !prev)}>
+                        {caseDetailCollapsed ? "ขยาย" : "ย่อ"}
+                      </PillButton>
+                      <PillButton onClick={openPicker} disabled={!caseFolderReady}>
+                        เลือก/จัดการรูป
+                      </PillButton>
+                      <PillButton onClick={refreshFiles} disabled={!originalDir}>
+                        Refresh Files
+                      </PillButton>
+                    </div>
+                  }
+                >
+                  {caseOptionLoading && (
+                    <div className="mb-2 text-[10px] uppercase tracking-[0.2em] text-white/50">กำลังโหลดชื่อ...</div>
+                  )}
+                  {caseOptionError && <div className="mb-2 text-[10px] text-rose-300">{caseOptionError}</div>}
 
-                {caseDetailCollapsed ? (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-7">
-                      <div>
-                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">HN</div>
-                        <div className="text-[11px] text-white/90">{caseDetailView.hn}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">AN</div>
-                        <div className="text-[11px] text-white/90">{caseDetailView.an}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Case Date</div>
-                        <div className="text-[11px] text-white/90">{caseDetailView.caseDate}</div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Time</div>
-                        <div className="text-[11px] text-white/90">
-                          {caseDetailView.timeFrom} - {caseDetailView.timeTo}
+                  {caseDetailCollapsed ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-7">
+                        <div>
+                          <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">HN</div>
+                          <div className="text-[11px] text-white/90">{caseDetailView.hn}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">AN</div>
+                          <div className="text-[11px] text-white/90">{caseDetailView.an}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Case Date</div>
+                          <div className="text-[11px] text-white/90">{caseDetailView.caseDate}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Time</div>
+                          <div className="text-[11px] text-white/90">
+                            {caseDetailView.timeFrom} - {caseDetailView.timeTo}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Room</div>
+                          <div className="text-[11px] text-white/90">{caseDetailView.procedureRoom}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Procedure</div>
+                          <div className="text-[11px] text-white/90">{caseDetailView.procedure}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Physician</div>
+                          <div className="text-[11px] text-white/90">{caseDetailView.physician}</div>
                         </div>
                       </div>
-                      <div>
-                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Room</div>
-                        <div className="text-[11px] text-white/90">{caseDetailView.procedureRoom}</div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-12 gap-4">
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Case ID</div>
+                        <div className="text-sm text-white/90">{caseDetailView.caseId}</div>
                       </div>
-                      <div>
-                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Procedure</div>
-                        <div className="text-[11px] text-white/90">{caseDetailView.procedure}</div>
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">HN</div>
+                        <div className="text-sm text-white/90">{caseDetailView.hn}</div>
                       </div>
-                      <div>
-                        <div className="text-[9px] uppercase tracking-[0.2em] text-white/50">Physician</div>
-                        <div className="text-[11px] text-white/90">{caseDetailView.physician}</div>
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">AN</div>
+                        <div className="text-sm text-white/90">{caseDetailView.an}</div>
+                      </div>
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Case No</div>
+                        <div className="text-sm text-white/90">{caseDetailView.caseNo}</div>
+                      </div>
+
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Case Date</div>
+                        <div className="text-sm text-white/90">{caseDetailView.caseDate}</div>
+                      </div>
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Time From</div>
+                        <div className="text-sm text-white/90">{caseDetailView.timeFrom}</div>
+                      </div>
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Time To</div>
+                        <div className="text-sm text-white/90">{caseDetailView.timeTo}</div>
+                      </div>
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Register Date</div>
+                        <div className="text-sm text-white/90">{caseDetailView.registerDate}</div>
+                      </div>
+
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Register Time</div>
+                        <div className="text-sm text-white/90">{caseDetailView.registerTime}</div>
+                      </div>
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Appointment Date</div>
+                        <div className="text-sm text-white/90">{caseDetailView.appointmentDate}</div>
+                      </div>
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Appointment Time</div>
+                        <div className="text-sm text-white/90">{caseDetailView.appointmentTime}</div>
+                      </div>
+                      <div className="col-span-12 md:col-span-3">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Room</div>
+                        <div className="text-sm text-white/90">{caseDetailView.procedureRoom}</div>
+                      </div>
+
+                      <div className="col-span-12 md:col-span-6">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Procedure</div>
+                        <div className="text-sm text-white/90">{caseDetailView.procedure}</div>
+                      </div>
+                      <div className="col-span-12 md:col-span-6">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Physician</div>
+                        <div className="text-sm text-white/90">{caseDetailView.physician}</div>
+                      </div>
+                      <div className="col-span-12">
+                        <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Note</div>
+                        <div className="text-sm text-white/90">{caseDetailView.note}</div>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-12 gap-4">
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Case ID</div>
-                      <div className="text-sm text-white/90">{caseDetailView.caseId}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">HN</div>
-                      <div className="text-sm text-white/90">{caseDetailView.hn}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">AN</div>
-                      <div className="text-sm text-white/90">{caseDetailView.an}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Case No</div>
-                      <div className="text-sm text-white/90">{caseDetailView.caseNo}</div>
-                    </div>
+                  )}
 
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Case Date</div>
-                      <div className="text-sm text-white/90">{caseDetailView.caseDate}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Time From</div>
-                      <div className="text-sm text-white/90">{caseDetailView.timeFrom}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Time To</div>
-                      <div className="text-sm text-white/90">{caseDetailView.timeTo}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Register Date</div>
-                      <div className="text-sm text-white/90">{caseDetailView.registerDate}</div>
-                    </div>
-
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Register Time</div>
-                      <div className="text-sm text-white/90">{caseDetailView.registerTime}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Appointment Date</div>
-                      <div className="text-sm text-white/90">{caseDetailView.appointmentDate}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Appointment Time</div>
-                      <div className="text-sm text-white/90">{caseDetailView.appointmentTime}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-3">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Room</div>
-                      <div className="text-sm text-white/90">{caseDetailView.procedureRoom}</div>
-                    </div>
-
-                    <div className="col-span-12 md:col-span-6">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Procedure</div>
-                      <div className="text-sm text-white/90">{caseDetailView.procedure}</div>
-                    </div>
-                    <div className="col-span-12 md:col-span-6">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Physician</div>
-                      <div className="text-sm text-white/90">{caseDetailView.physician}</div>
-                    </div>
-                    <div className="col-span-12">
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-white/50">Note</div>
-                      <div className="text-sm text-white/90">{caseDetailView.note}</div>
-                    </div>
-                  </div>
-                )}
-
-                {/* <div
+                  {/* <div
                   className={`border border-white/10 bg-white/[0.04] ${caseDetailCollapsed ? "mt-3 rounded-xl px-3 py-2" : "mt-4 rounded-2xl px-4 py-3"
                     }`}
                 >
@@ -3574,121 +3875,90 @@ function PageContent() {
                     </div>
                   )}
                 </div> */}
-              </GlassCard>
-            ) : (
-              <GlassCard
-                title="Folder Builder"
-                right={
-                  <div className="flex items-center gap-2">
-                    <div className="text-xs text-white/55">Save bucket: <span className="text-white/85">original</span></div>
-                    <PillButton onClick={() => setBuilderOpen((v) => !v)}>
-                      {builderOpen ? "พับ" : "ขยาย"}
-                    </PillButton>
-                  </div>
-                }
-                className="overflow-visible"
-              >
-                {builderOpen && (
-                  <div className="grid grid-cols-12 gap-4 overflow-visible">
-                    {/* Date */}
-                    <div className="col-span-12 lg:col-span-5 overflow-visible">
-                      <div className="text-xs text-white/60 mb-2">Date (พ.ศ.)</div>
-                      <div className="grid grid-cols-[1fr_auto] gap-2">
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
-                          <div className="text-[11px] text-white/50">เลือกวันที่</div>
-                          <div className="mt-1 flex items-center justify-center gap-2">
-                            <div className="text-sm text-white/90 w-full">{beDateLabel}</div>
-                            <DatePicker
-                              selected={pickedDate}
-                              onChange={(d) => setPickedDate(d)}
-                              customInput={<PillButton className="h-9 px-3">Pick</PillButton>}
-                              popperPlacement="bottom-end"
-                              portalId="react-datepicker-portal"
-                              dateFormat="yyyy-MM-dd"
-                            />
+                </GlassCard>
+              ) : (
+                <GlassCard
+                  title="Folder Builder"
+                  right={
+                    <div className="flex items-center gap-2">
+                      <div className="text-xs text-white/55">Save bucket: <span className="text-white/85">original</span></div>
+                      <PillButton onClick={() => setBuilderOpen((v) => !v)}>
+                        {builderOpen ? "พับ" : "ขยาย"}
+                      </PillButton>
+                    </div>
+                  }
+                  className="overflow-visible"
+                >
+                  {builderOpen && (
+                    <div className="grid grid-cols-12 gap-4 overflow-visible">
+                      {/* Date */}
+                      <div className="col-span-12 lg:col-span-5 overflow-visible">
+                        <div className="text-xs text-white/60 mb-2">Date (พ.ศ.)</div>
+                        <div className="grid grid-cols-[1fr_auto] gap-2">
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+                            <div className="text-[11px] text-white/50">เลือกวันที่</div>
+                            <div className="mt-1 flex items-center justify-center gap-2">
+                              <div className="text-sm text-white/90 w-full">{beDateLabel}</div>
+                              <DatePicker
+                                selected={pickedDate}
+                                onChange={(d) => setPickedDate(d)}
+                                customInput={<PillButton className="h-9 px-3">Pick</PillButton>}
+                                popperPlacement="bottom-end"
+                                portalId="react-datepicker-portal"
+                                dateFormat="yyyy-MM-dd"
+                              />
+                            </div>
+                            <div className="text-[11px] text-white/45 mt-1">{pickedDate ? `${pickedDate.toISOString().slice(0, 10)} → folder: ${dateKey}` : "ยังไม่เลือก"}</div>
                           </div>
-                          <div className="text-[11px] text-white/45 mt-1">{pickedDate ? `${pickedDate.toISOString().slice(0, 10)} → folder: ${dateKey}` : "ยังไม่เลือก"}</div>
+
+                          <PillButton onClick={createOrSelectDate} disabled={!vcDir || !pickedDate} className="h-full">
+                            ใช้
+                          </PillButton>
                         </div>
 
-                        <PillButton onClick={createOrSelectDate} disabled={!vcDir || !pickedDate} className="h-full">
-                          ใช้
-                        </PillButton>
-                      </div>
-
-                      <div className="mt-3 overflow-visible">
-                        <Select
-                          value={dateSelected}
-                          onChange={(v) => selectDateFolder(v as any)}
-                          options={dateOptions.map((o) => {
-                            // if selected date exists, show proper label
-                            if (pickedDate && o.value === dateKey) return { value: o.value, label: `${o.value} — ${formatThaiBEDisplay(pickedDate)}` };
-                            return o;
-                          })}
-                          placeholder="ค้นหา/เลือก Date folder"
-                          isClearable
-                          menuPortalTarget={document.body}
-                          menuPosition="fixed"
-                          styles={selectStyles}
-                          theme={selectTheme}
-                        />
-                        <div className="text-[11px] text-white/45 mt-2">
-                          Example: <span className="text-white/70">VideoCapture/{dateSelected?.value || "ddMMyy"}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* HN */}
-                    <div className="col-span-12 lg:col-span-3 overflow-visible">
-                      <div className="text-xs text-white/60 mb-2">HN</div>
-                      <div className="grid grid-cols-[1fr_auto] gap-2">
-                        <input
-                          value={hnInput}
-                          onChange={(e) => setHnInput(e.target.value)}
-                          placeholder="เช่น 112222"
-                          className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white/90 outline-none"
-                        />
-                        <PillButton onClick={createHN} disabled={!dateDir}>
-                          Create
-                        </PillButton>
-                      </div>
-
-                      <div className="mt-3 overflow-visible">
-                        <Select
-                          value={hnSelected}
-                          onChange={(v) => selectHNFolder(v as any)}
-                          options={hnOptions}
-                          placeholder="ค้นหา/เลือก HN"
-                          isClearable
-                          menuPortalTarget={document.body}
-                          menuPosition="fixed"
-                          styles={selectStyles}
-                          theme={selectTheme}
-                        />
-                      </div>
-                    </div>
-
-                    {/* AN (bucket fixed original) */}
-                    <div className="col-span-12 lg:col-span-4 overflow-visible">
-                      <div className="text-xs text-white/60 mb-2">AN (Save: original)</div>
-                      <div className="grid grid-cols-[1fr_auto] gap-2">
-                        <input
-                          value={anInput}
-                          onChange={(e) => setAnInput(e.target.value)}
-                          placeholder="เช่น 112222"
-                          className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white/90 outline-none"
-                        />
-                        <PillButton onClick={createAN} disabled={!hnDir}>
-                          Create
-                        </PillButton>
-                      </div>
-
-                      <div className="mt-3 overflow-visible grid grid-cols-[1fr_auto] gap-2">
-                        <div className="overflow-visible">
+                        <div className="mt-3 overflow-visible">
                           <Select
-                            value={anSelected}
-                            onChange={(v) => selectANFolder(v as any)}
-                            options={anOptions}
-                            placeholder="ค้นหา/เลือก AN"
+                            value={dateSelected}
+                            onChange={(v) => selectDateFolder(v as any)}
+                            options={dateOptions.map((o) => {
+                              // if selected date exists, show proper label
+                              if (pickedDate && o.value === dateKey) return { value: o.value, label: `${o.value} — ${formatThaiBEDisplay(pickedDate)}` };
+                              return o;
+                            })}
+                            placeholder="ค้นหา/เลือก Date folder"
+                            isClearable
+                            menuPortalTarget={document.body}
+                            menuPosition="fixed"
+                            styles={selectStyles}
+                            theme={selectTheme}
+                          />
+                          <div className="text-[11px] text-white/45 mt-2">
+                            Example: <span className="text-white/70">VideoCapture/{dateSelected?.value || "ddMMyy"}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* HN */}
+                      <div className="col-span-12 lg:col-span-3 overflow-visible">
+                        <div className="text-xs text-white/60 mb-2">HN</div>
+                        <div className="grid grid-cols-[1fr_auto] gap-2">
+                          <input
+                            value={hnInput}
+                            onChange={(e) => setHnInput(e.target.value)}
+                            placeholder="เช่น 112222"
+                            className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white/90 outline-none"
+                          />
+                          <PillButton onClick={createHN} disabled={!dateDir}>
+                            Create
+                          </PillButton>
+                        </div>
+
+                        <div className="mt-3 overflow-visible">
+                          <Select
+                            value={hnSelected}
+                            onChange={(v) => selectHNFolder(v as any)}
+                            options={hnOptions}
+                            placeholder="ค้นหา/เลือก HN"
                             isClearable
                             menuPortalTarget={document.body}
                             menuPosition="fixed"
@@ -3696,101 +3966,132 @@ function PageContent() {
                             theme={selectTheme}
                           />
                         </div>
-                        <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 flex items-center text-sm text-white/80">
-                          original
+                      </div>
+
+                      {/* AN (bucket fixed original) */}
+                      <div className="col-span-12 lg:col-span-4 overflow-visible">
+                        <div className="text-xs text-white/60 mb-2">AN (Save: original)</div>
+                        <div className="grid grid-cols-[1fr_auto] gap-2">
+                          <input
+                            value={anInput}
+                            onChange={(e) => setAnInput(e.target.value)}
+                            placeholder="เช่น 112222"
+                            className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-white/90 outline-none"
+                          />
+                          <PillButton onClick={createAN} disabled={!hnDir}>
+                            Create
+                          </PillButton>
+                        </div>
+
+                        <div className="mt-3 overflow-visible grid grid-cols-[1fr_auto] gap-2">
+                          <div className="overflow-visible">
+                            <Select
+                              value={anSelected}
+                              onChange={(v) => selectANFolder(v as any)}
+                              options={anOptions}
+                              placeholder="ค้นหา/เลือก AN"
+                              isClearable
+                              menuPortalTarget={document.body}
+                              menuPosition="fixed"
+                              styles={selectStyles}
+                              theme={selectTheme}
+                            />
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 flex items-center text-sm text-white/80">
+                            original
+                          </div>
+                        </div>
+
+                        <div className="mt-2 text-[11px] text-white/50">
+                          Current path:{" "}
+                          <button onClick={onClickPath} className="underline text-teal-200/70 hover:text-teal-100 break-all">
+                            {builderPathHint}
+                          </button>
+                        </div>
+
+                        <div className="mt-3 flex gap-2">
+                          <PillButton onClick={openPicker} disabled={!originalDir || !chooseDir}>
+                            รีพอร์ท/เลือกจัดการรูป
+                          </PillButton>
+                          <PillButton onClick={refreshFiles} disabled={!originalDir}>
+                            Refresh Files
+                          </PillButton>
                         </div>
                       </div>
+                    </div>
+                  )}
 
-                      <div className="mt-2 text-[11px] text-white/50">
-                        Current path:{" "}
-                        <button onClick={onClickPath} className="underline text-teal-200/70 hover:text-teal-100 break-all">
-                          {builderPathHint}
+                  {!builderOpen && (
+                    <div className="text-sm text-white/60 flex items-center justify-between gap-3">
+                      <div className="truncate">
+                        {builderPathHint}{" "}
+                        <button onClick={onClickPath} className="underline text-teal-200/70 hover:text-teal-100">
+                          (คลิกเพื่อคัดลอก/รีเฟรช)
                         </button>
                       </div>
-
-                      <div className="mt-3 flex gap-2">
-                        <PillButton onClick={openPicker} disabled={!originalDir || !chooseDir}>
-                          รีพอร์ท/เลือกจัดการรูป
-                        </PillButton>
-                        <PillButton onClick={refreshFiles} disabled={!originalDir}>
-                          Refresh Files
-                        </PillButton>
-                      </div>
+                      <div className="text-xs text-white/45">Builder ถูกพับเพื่อเน้น Camera/Preview</div>
                     </div>
-                  </div>
-                )}
-
-                {!builderOpen && (
-                  <div className="text-sm text-white/60 flex items-center justify-between gap-3">
-                    <div className="truncate">
-                      {builderPathHint}{" "}
-                      <button onClick={onClickPath} className="underline text-teal-200/70 hover:text-teal-100">
-                        (คลิกเพื่อคัดลอก/รีเฟรช)
-                      </button>
-                    </div>
-                    <div className="text-xs text-white/45">Builder ถูกพับเพื่อเน้น Camera/Preview</div>
-                  </div>
-                )}
-              </GlassCard>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <div className="px-4 py-2 rounded-2xl border border-white/10 bg-emerald-500/10 text-sm text-white/80">
-              Root: <span className="text-white/90">{root ? rootLabel : "—"}</span>
+                  )}
+                </GlassCard>
+              )}
             </div>
-            <PillButton onClick={connectRoot} tone="primary">
-              Select Root
-            </PillButton>
-            <PillButton onClick={disconnectRoot} tone="danger" disabled={!root}>
-              Disconnect
-            </PillButton>
+
+            <div className="flex items-center gap-2">
+              <div className="px-4 py-2 rounded-2xl border border-white/10 bg-emerald-500/10 text-sm text-white/80">
+                Root: <span className="text-white/90">{root ? rootLabel : "—"}</span>
+              </div>
+              <PillButton onClick={connectRoot} tone="primary">
+                Select Root
+              </PillButton>
+              <PillButton onClick={disconnectRoot} tone="danger" disabled={!root}>
+                Disconnect
+              </PillButton>
+            </div>
+          </div>
+
+          {/* Layout: main + files panel (collapsible) */}
+          <div className="h-[calc(100%-88px)] grid grid-cols-[1fr_auto] gap-4 min-w-0">
+            {/* MAIN */}
+            <div className="min-w-0 h-full grid grid-rows-[auto_1fr] gap-4">
+
+
+              {renderCameraPreviewSection()}
+            </div>
+
+            {renderFilesPanelSection()}
           </div>
         </div>
 
-        {/* Layout: main + files panel (collapsible) */}
-        <div className="h-[calc(100%-88px)] grid grid-cols-[1fr_auto] gap-4 min-w-0">
-          {/* MAIN */}
-          <div className="min-w-0 h-full grid grid-rows-[auto_1fr] gap-4">
+        {/* Modals */}
+        <ImagePickerModal
+          open={pickerOpen}
+          onClose={() => setPickerOpen(false)}
+          originalDir={originalDir}
+          chooseDir={chooseDir}
+          onRefreshAfter={refreshFiles}
+          onEditChosen={(f) => {
+            setEditorFile(f);
+            setEditorOpen(true);
+          }}
+          onExportReport={exportReport}
+          refreshSignal={pickerRefreshTick}
+        />
 
+        <CameraAdjustModal open={camAdjustOpen} onClose={() => setCamAdjustOpen(false)}>
+          <CameraAdjustControls />
+        </CameraAdjustModal>
 
-            {renderCameraPreviewSection()}
-          </div>
-
-          {renderFilesPanelSection()}
-        </div>
-      </div>
-
-      {/* Modals */}
-      <ImagePickerModal
-        open={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        originalDir={originalDir}
-        chooseDir={chooseDir}
-        onRefreshAfter={refreshFiles}
-        onEditChosen={(f) => {
-          setEditorFile(f);
-          setEditorOpen(true);
-        }}
-        onExportReport={exportReport}
-        refreshSignal={pickerRefreshTick}
-      />
-
-      <CameraAdjustModal open={camAdjustOpen} onClose={() => setCamAdjustOpen(false)}>
-        <CameraAdjustControls />
-      </CameraAdjustModal>
-
-      <ImageEditorModal
-        open={editorOpen}
-        onClose={() => setEditorOpen(false)}
-        file={editorFile}
-        chooseDir={chooseDir}
-        onSaved={async () => {
-          setPickerRefreshTick((v) => v + 1);
-        }}
-      />
-    </main>
-      </>
+        <ImageEditorModal
+          open={editorOpen}
+          onClose={() => setEditorOpen(false)}
+          file={editorFile}
+          chooseDir={chooseDir}
+          onSaved={async () => {
+            setPickerRefreshTick((v) => v + 1);
+          }}
+        />
+      </main>
+    </>
   );
 }
 

@@ -197,8 +197,12 @@ const parseCameraPresetOptions = (raw: unknown): SelectOption[] => {
   return rows
     .map((item) => {
       const row = item as Record<string, unknown>;
-      const id = normalizeText(row.id ?? row.cameraid ?? row.presetid ?? row.cameraPresetId).trim();
-      const label = normalizeText(row.name ?? row.presetname ?? row.label ?? row.title).trim();
+      const id = normalizeText(
+        row.id ?? row.cameraid ?? row.camera_id ?? row.cameraId ?? row.presetid ?? row.cameraPresetId
+      ).trim();
+      const label = normalizeText(
+        row.name ?? row.camera_name ?? row.cameraName ?? row.presetname ?? row.label ?? row.title
+      ).trim();
       return id && label ? { id, code: label, label } : null;
     })
     .filter(Boolean) as SelectOption[];
@@ -344,7 +348,13 @@ const toCaseItems = (payload: unknown): CaseItem[] => {
     ).trim();
     const camera = String(row.camera ?? row.room ?? row.cameraName ?? "").trim();
     const preset = String(
-      row.camerapresetid ?? row.cameraPresetId ?? row.presetid ?? row.presetId ?? ""
+      row.camerapresetid ??
+      row.cameraPresetId ??
+      row.presetid ??
+      row.presetId ??
+      row.preset ??
+      row.preset_id ??
+      ""
     ).trim();
     const procedure = String(row.procedure ?? row.mainProcedure ?? row.caseType ?? row.service ?? "").trim();
     const status = ensureStatus(row.casestatusid ?? row.caseStatusId ?? row.status ?? row.caseStatus ?? row.state);
@@ -2137,11 +2147,11 @@ export default function Page() {
                 <h3 className="text-sm font-semibold text-slate-700">Camera Preset</h3>
                 <div className="mt-4 grid grid-cols-12 gap-3">
                   <div className="col-span-12 md:col-span-4">
-                    <label className={labelClass}>Camera Preset</label>
+                    <label className={labelClass}>Camera Preset{caseForm.preset}</label>
                     <select
                       className={fieldClass}
-                      disabled={fieldsDisabled || optionsLoading}
-                      value={caseForm.preset}
+                      disabled={fieldsDisabled || optionsLoading || modalMode !== "add"}
+                      value={caseForm.preset} 
                       onChange={(e) => updatePreset(e.target.value)}
                     >
                       <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก Preset"}</option>
