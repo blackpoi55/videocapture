@@ -6,7 +6,7 @@ import Select, { components, SingleValue } from "react-select";
 import Swal from "sweetalert2";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
-import { getCasebyid, getpersonhistorybyid, getSelectTypes, getvaluebyselecttypeid } from "@/action/api";
+import { getpersonhistorybyid, getSelectTypes, getvaluebyselecttypeid } from "@/action/api";
 import { SELECT_TYPE_CODES, SELECT_TYPE_IDS } from "@/config";
 import ReportClient from "./report/report-client";
 
@@ -2053,8 +2053,7 @@ function PageContent() {
     casePrefillAppliedRef.current = null;
     let active = true;
     (async () => {
-      const response = await getCasebyid(caseIdParam);
-      const response1 = await getpersonhistorybyid(caseIdParam);
+      const response = await getpersonhistorybyid(caseIdParam);
       if (!active) return;
       if ((response as { error?: unknown })?.error) {
         alertErr("ดึงข้อมูลเคสไม่สำเร็จ", (response as { message?: string })?.message || "โปรดลองใหม่อีกครั้ง");
@@ -2063,63 +2062,21 @@ function PageContent() {
       const data = (response as { data?: unknown })?.data ?? response;
       const row = data as Record<string, unknown> | null;
       if (!row) return;
-      const hn = normalizeText(row.hn ?? row.HN ?? "");
-      const an = normalizeText(row.an ?? row.AN ?? "");
-      const registerDate = normalizeText(row.registerdate ?? row.registerDate ?? "");
-      const registerTime = normalizeText(row.registertime ?? row.registerTime ?? "");
-      const appointmentDate = normalizeText(row.appointmentdate ?? row.appointmentDate ?? "");
-      const appointmentTime = normalizeText(row.appointmenttime ?? row.appointmentTime ?? "");
-      const caseDate = normalizeText(row.casedate ?? row.caseDate ?? row.operationDate ?? "");
-      const timeFrom = normalizeText(row.casetimefrom ?? row.caseTimeFrom ?? "");
-      const timeTo = normalizeText(row.casetimeto ?? row.caseTimeTo ?? "");
-      const procedureRoom = normalizeText(
-        row.procedureroomid ??
-        row.procedureRoomId ??
-        row.procedureroomname ??
-        row.procedureRoomName ??
-        row.roomname ??
-        row.room ??
-        ""
-      );
-      const procedure = normalizeText(
-        row.mainprocedureid ??
-        row.mainProcedureId ??
-        row.mainprocedurename ??
-        row.mainProcedureName ??
-        row.procedurename ??
-        row.procedureName ??
-        row.procedure ??
-        row.caseType ??
-        ""
-      );
-      const physician = normalizeText(
-        row.physicians1id ??
-        row.physicians1Id ??
-        row.physicians1name ??
-        row.physicians1Name ??
-        row.physicianname ??
-        row.physicianName ??
-        row.doctorname ??
-        row.doctorName ??
-        row.doctor ??
-        row.physician ??
-        ""
-      );
-      const note = normalizeText(row.note ?? "");
-      const caseNo = normalizeText(row.casenumber ?? row.caseNumber ?? row.caseNo ?? "");
-      const date = parseApiDate(
-        row.casedate ??
-        row.caseDate ??
-        row.operationDate ??
-        row.appointmentdate ??
-        row.appointmentDate ??
-        row.registerdate ??
-        row.registerDate ??
-        row.date ??
-        row.createdate ??
-        row.createDate ??
-        row.createdAt
-      );
+      const hn = normalizeText(row.hn);
+      const an = normalizeText(row.an);
+      const registerDate = normalizeText(row.registerdate);
+      const registerTime = normalizeText(row.registertime);
+      const appointmentDate = normalizeText(row.appointmentdate);
+      const appointmentTime = normalizeText(row.appointmenttime);
+      const caseDate = normalizeText(row.casedate);
+      const timeFrom = normalizeText(row.casetimefrom);
+      const timeTo = normalizeText(row.casetimeto);
+      const procedureRoom = normalizeText(row.room_name);
+      const procedure = normalizeText(row.mainprocedure_name);
+      const physician = normalizeText(row.physician_name);
+      const note = normalizeText(row.note);
+      const caseNo = normalizeText(row.casenumber);
+      const date = parseApiDate(row.casedate);
       const prefill: CasePrefill = { caseId: caseIdParam, hn, an, date };
       setCasePrefill(prefill);
       setCaseDetail({
