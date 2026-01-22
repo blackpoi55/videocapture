@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const navItems = [
-  { href: "/", label: "Capture" },
+  // { href: "/", label: "Capture" },
   { href: "/calenda", label: "Calenda" },
   { href: "/register", label: "Register" },
   { href: "/setting", label: "Setting" },

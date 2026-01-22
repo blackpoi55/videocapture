@@ -64,3 +64,16 @@ export const getpersonhistorybyid = (id: string) => {
 export const putCalendarCase = (id: string, data: unknown) => {
   return PUT(`/history/${id}`, data);
 };
+export const getcamerapreset = () => {
+  return GET(`/cameras`);
+};
+export const postcamerapreset = (data: unknown) => {
+  return POST("/cameras", data);
+};
+export const putcamerapreset = (id: string, data: unknown) => {
+  return PUT(`/cameras/${id}`, data);
+};
+
+export const deletecamerapreset = (id: string) => {
+  return DELETE(`/cameras/${id}`);
+};

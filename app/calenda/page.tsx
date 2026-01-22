@@ -20,7 +20,15 @@ import { th } from "date-fns/locale/th";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import Swal from "sweetalert2";
 import { useRouter } from "next/navigation";
-import { getbyHN, getSelectTypes, getvaluebyselecttypeid, postCalendagetdata, postCalendarCase, putCalendarCase } from "@/action/api";
+import {
+  getbyHN,
+  getcamerapreset,
+  getSelectTypes,
+  getvaluebyselecttypeid,
+  postCalendagetdata,
+  postCalendarCase,
+  putCalendarCase,
+} from "@/action/api";
 import { SELECT_TYPE_CODES, SELECT_TYPE_IDS } from "@/config";
 
 type CaseItem = {
@@ -110,6 +118,7 @@ type CaseForm = {
   registration: RegistrationInfo;
   procedure: ProcedureInfo;
   physician: PhysicianInfo;
+  preset: string;
 };
 
 type CaseMeta = {
@@ -118,6 +127,7 @@ type CaseMeta = {
   registration: RegistrationInfo;
   procedure: ProcedureInfo;
   physician: PhysicianInfo;
+  preset: string;
 };
 
 type SelectType = {
@@ -178,6 +188,18 @@ const parseSelectOptions = (raw: unknown): SelectOption[] => {
       const desc = normalizeText(row.valuedesc ?? row.desc ?? row.label).trim();
       const label = desc || code;
       return id && label ? { id, code, label } : null;
+    })
+    .filter(Boolean) as SelectOption[];
+};
+
+const parseCameraPresetOptions = (raw: unknown): SelectOption[] => {
+  const rows = Array.isArray(raw) ? raw : [];
+  return rows
+    .map((item) => {
+      const row = item as Record<string, unknown>;
+      const id = normalizeText(row.id ?? row.cameraid ?? row.presetid ?? row.cameraPresetId).trim();
+      const label = normalizeText(row.name ?? row.presetname ?? row.label ?? row.title).trim();
+      return id && label ? { id, code: label, label } : null;
     })
     .filter(Boolean) as SelectOption[];
 };
@@ -321,6 +343,9 @@ const toCaseItems = (payload: unknown): CaseItem[] => {
       ""
     ).trim();
     const camera = String(row.camera ?? row.room ?? row.cameraName ?? "").trim();
+    const preset = String(
+      row.camerapresetid ?? row.cameraPresetId ?? row.presetid ?? row.presetId ?? ""
+    ).trim();
     const procedure = String(row.procedure ?? row.mainProcedure ?? row.caseType ?? row.service ?? "").trim();
     const status = ensureStatus(row.casestatusid ?? row.caseStatusId ?? row.status ?? row.caseStatus ?? row.state);
     const id = String(row.id ?? row.caseId ?? row.caseNo ?? row.uid ?? `case-${date}-${index}`).trim();
@@ -392,6 +417,7 @@ const toCaseItems = (payload: unknown): CaseItem[] => {
         dx1: String(row.prediagnosisdx1id ?? row.preDiagnosisDx1Id ?? "").trim(),
         dx2: String(row.prediagnosisdx2id ?? row.preDiagnosisDx2Id ?? "").trim(),
       },
+      preset,
     };
 
     return {
@@ -542,6 +568,7 @@ const buildEmptyForm = (date: string, time?: string): CaseForm => ({
   registration: registrationDefaults(date, time),
   procedure: { ...procedureDefaults },
   physician: { ...physicianDefaults },
+  preset: "",
 });
 
 const toFullName = (patient: PatientInfo | null) => {
@@ -571,6 +598,7 @@ const toCalendarEvent = (item: CaseItem): BigCalendarEvent => {
       ...item.meta?.physician,
       physician: item.meta?.physician.physician || item.doctor,
     },
+    preset: item.meta?.preset || "",
   };
   return {
     id: item.id,
@@ -642,6 +670,7 @@ export default function Page() {
   const [staffOptions, setStaffOptions] = useState<SelectOption[]>([]);
   const [diagnosisOptions, setDiagnosisOptions] = useState<SelectOption[]>([]);
   const [procedureRoomOptions, setProcedureRoomOptions] = useState<SelectOption[]>([]);
+  const [cameraPresetOptions, setCameraPresetOptions] = useState<SelectOption[]>([]);
   const [procedureRoomLoading, setProcedureRoomLoading] = useState(false);
   const [procedureRoomFilter, setProcedureRoomFilter] = useState("");
   const fieldsDisabled = patientStatus !== "found";
@@ -789,6 +818,7 @@ export default function Page() {
           nurseRes,
           staffRes,
           diagnosisRes,
+          cameraPresetRes,
         ] = await Promise.all([
           typeIds.prefix ? getvaluebyselecttypeid(typeIds.prefix) : Promise.resolve({ data: [] }),
           typeIds.nationality ? getvaluebyselecttypeid(typeIds.nationality) : Promise.resolve({ data: [] }),
@@ -809,6 +839,7 @@ export default function Page() {
           typeIds.nurse ? getvaluebyselecttypeid(typeIds.nurse) : Promise.resolve({ data: [] }),
           typeIds.staff ? getvaluebyselecttypeid(typeIds.staff) : Promise.resolve({ data: [] }),
           typeIds.diagnosis ? getvaluebyselecttypeid(typeIds.diagnosis) : Promise.resolve({ data: [] }),
+          getcamerapreset(),
         ]);
         if (!active) return;
         setPrefixOptions(parseSelectOptions((prefixRes as { data?: unknown })?.data ?? prefixRes));
@@ -830,6 +861,9 @@ export default function Page() {
         setNurseOptions(parseSelectOptions((nurseRes as { data?: unknown })?.data ?? nurseRes));
         setStaffOptions(parseSelectOptions((staffRes as { data?: unknown })?.data ?? staffRes));
         setDiagnosisOptions(parseSelectOptions((diagnosisRes as { data?: unknown })?.data ?? diagnosisRes));
+        setCameraPresetOptions(
+          parseCameraPresetOptions((cameraPresetRes as { data?: unknown })?.data ?? cameraPresetRes)
+        );
       } catch {
         if (!active) return;
         setPrefixOptions([]);
@@ -851,6 +885,7 @@ export default function Page() {
         setNurseOptions([]);
         setStaffOptions([]);
         setDiagnosisOptions([]);
+        setCameraPresetOptions([]);
       } finally {
         if (active) setProcedureRoomLoading(false);
         if (active) setOptionsLoading(false);
@@ -975,6 +1010,10 @@ export default function Page() {
     setCaseForm((prev) => ({ ...prev, physician: { ...prev.physician, [field]: value } }));
   };
 
+  const updatePreset = (value: string) => {
+    setCaseForm((prev) => ({ ...prev, preset: value }));
+  };
+
   const fetchPatientByHn = async (hn: string) => {
     if (!hn) return;
     setPatientStatus("loading");
@@ -1030,6 +1069,7 @@ export default function Page() {
       registration: registrationDefaults(isoFromDate(event.start)),
       procedure: { ...procedureDefaults },
       physician: { ...physicianDefaults },
+      preset: "",
     };
     const patient = meta.patient ?? null;
     const hn = meta.hn || patient?.hn || "";
@@ -1041,6 +1081,7 @@ export default function Page() {
       registration: meta.registration,
       procedure: meta.procedure,
       physician: meta.physician,
+      preset: meta.preset || "",
     });
     setPatientStatus(patient ? "found" : hn ? "notfound" : "idle");
     setModalOpen(true);
@@ -1084,6 +1125,7 @@ export default function Page() {
       registration: caseForm.registration,
       procedure: caseForm.procedure,
       physician: caseForm.physician,
+      preset: caseForm.preset,
     };
     const currentStatus =
       (editingEventId && monthEvents.find((event) => event.id === editingEventId)?.status) || "Monitoring";
@@ -1102,7 +1144,7 @@ export default function Page() {
 
     const derivedAge = caseForm.patient?.age || (caseForm.patient?.dob ? calculateAgeFromDob(caseForm.patient.dob) : "");
     const payloadValue = (value?: string | null) => (value ? value : "");
-    const payload: Record<string, string> = {
+    const payload: Record<string, string | number> = {
       hn: payloadValue(caseForm.hn.trim()),
       an: payloadValue(caseForm.patient?.an || ""),
       age: payloadValue(derivedAge),
@@ -1131,6 +1173,7 @@ export default function Page() {
       staff2id: payloadValue(caseForm.physician.staff2),
       prediagnosisdx1id: payloadValue(caseForm.physician.dx1 || caseForm.physician.preDiagnosis),
       prediagnosisdx2id: payloadValue(caseForm.physician.dx2),
+      preset: parseInt(caseForm.preset || "0", 10),
     };
 
     const response =
@@ -2052,7 +2095,7 @@ export default function Page() {
                         ))}
                     </select>
                   </div>
-                  <div className="col-span-12 md:col-span-6">
+                  <div className="col-span-12 md:col-span-4">
                     <label className={labelClass}>Dx1</label>
                     <select
                       className={fieldClass}
@@ -2069,7 +2112,7 @@ export default function Page() {
                         ))}
                     </select>
                   </div>
-                  <div className="col-span-12 md:col-span-6">
+                  <div className="col-span-12 md:col-span-4">
                     <label className={labelClass}>Dx2</label>
                     <select
                       className={fieldClass}
@@ -2086,6 +2129,31 @@ export default function Page() {
                         ))}
                     </select>
                   </div>
+                </div>
+              </section>
+              <section
+                className={`rounded-2xl border border-slate-200 bg-white p-4 ${fieldsDisabled ? "opacity-60" : ""}`}
+              >
+                <h3 className="text-sm font-semibold text-slate-700">Camera Preset</h3>
+                <div className="mt-4 grid grid-cols-12 gap-3">
+                  <div className="col-span-12 md:col-span-4">
+                    <label className={labelClass}>Camera Preset</label>
+                    <select
+                      className={fieldClass}
+                      disabled={fieldsDisabled || optionsLoading}
+                      value={caseForm.preset}
+                      onChange={(e) => updatePreset(e.target.value)}
+                    >
+                      <option value="">{optionsLoading ? "กำลังโหลด..." : "เลือก Preset"}</option>
+                      {!optionsLoading &&
+                        cameraPresetOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
                 </div>
               </section>
             </div>
