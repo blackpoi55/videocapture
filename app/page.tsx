@@ -744,9 +744,9 @@ function CameraAdjustModal(props: { open: boolean; onClose: () => void; children
       <div className="fixed right-4 top-4 z-[99999] w-[420px] max-w-[90vw] rounded-3xl border border-white/10 bg-slate-950/70 shadow-[0_40px_120px_rgba(0,0,0,0.55)] backdrop-blur-xl pointer-events-auto">
         <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
           <div className="text-white/90 font-semibold">Adjust Camera</div>
-          <PillButton tone="danger" onClick={onClose}>
+          {/* <PillButton tone="danger" onClick={onClose}>
             Close
-          </PillButton>
+          </PillButton> */}
         </div>
         <div className="p-4">{children}</div>
       </div>
@@ -2488,7 +2488,7 @@ function PageContent() {
     renderLoopRef.current = requestAnimationFrame(draw);
   }, [getCropPixels, stopRenderLoop]);
 
-  const CameraAdjustControls = () => {
+  const CameraAdjustControls = ({ onClose }: { onClose: () => void }) => {
     const presetValue = cameraPresetMode === "edit" ? "edit" : cameraPresetId;
 
     const handlePresetChange = (nextId: string) => {
@@ -2535,6 +2535,7 @@ function PageContent() {
 
       try {
         updateCamera(payload);
+        onClose();
         alertOk("บันทึกค่ากล้องแล้ว");
       } catch (err) {
         alertErr("บันทึกไม่สำเร็จ", err instanceof Error ? err.message : String(err));
@@ -3580,12 +3581,12 @@ function PageContent() {
             </div>
 
             <div className="flex gap-2">
-              <PillButton onClick={savePhoto} disabled={!streamRef.current || !canSave || videoCountdown !== null}>
+              <PillButton onClick={savePhoto} disabled={!streamRef.current || !canSave  || camAdjustOpen || videoCountdown !== null}>
                 ถ่ายรูป (PNG)
               </PillButton>
 
               {!isRecording ? (
-                <PillButton onClick={startVideo} disabled={!streamRef.current || !canSave || videoCountdown !== null}>
+                <PillButton onClick={startVideo} disabled={!streamRef.current || !canSave || camAdjustOpen  || videoCountdown !== null}>
                   อัดวิดีโอ
                 </PillButton>
               ) : (
@@ -4087,7 +4088,7 @@ function PageContent() {
         />
 
         <CameraAdjustModal open={camAdjustOpen} onClose={() => setCamAdjustOpen(false)}>
-          <CameraAdjustControls />
+          <CameraAdjustControls onClose={() => setCamAdjustOpen(false)} />
         </CameraAdjustModal>
 
         <ImageEditorModal
