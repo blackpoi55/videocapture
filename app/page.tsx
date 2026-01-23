@@ -2465,16 +2465,20 @@ function PageContent() {
         return;
       }
       const vid = videoRef.current;
-      const w = vid.videoWidth || 1280;
-      const h = vid.videoHeight || 720;
-      renderCanvasRef.current.width = w;
-      renderCanvasRef.current.height = h;
+      const srcW = vid.videoWidth || 1280;
+      const srcH = vid.videoHeight || 720;
+      const targetW = 3840;
+      const targetH = 2160;
+      renderCanvasRef.current.width = targetW;
+      renderCanvasRef.current.height = targetH;
 
       const ctx = renderCtxRef.current;
-      ctx.clearRect(0, 0, w, h);
+      ctx.clearRect(0, 0, targetW, targetH);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.filter = camFilterRef.current;
-      const { sx, sy, sw, sh } = getCropPixels(w, h);
-      ctx.drawImage(vid, sx, sy, sw, sh, 0, 0, w, h);
+      const { sx, sy, sw, sh } = getCropPixels(srcW, srcH);
+      ctx.drawImage(vid, sx, sy, sw, sh, 0, 0, targetW, targetH);
       ctx.filter = "none";
 
       renderLoopRef.current = requestAnimationFrame(draw);
@@ -3207,14 +3211,18 @@ function PageContent() {
     try {
       const v = videoRef.current;
       const c = document.createElement("canvas");
-      const w = v.videoWidth || 1280;
-      const h = v.videoHeight || 720;
-      c.width = w;
-      c.height = h;
+      const srcW = v.videoWidth || 1280;
+      const srcH = v.videoHeight || 720;
+      const targetW = 3840;
+      const targetH = 2160;
+      c.width = targetW;
+      c.height = targetH;
       const ctx = c.getContext("2d")!;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
       ctx.filter = camFilterRef.current;
-      const { sx, sy, sw, sh } = getCropPixels(w, h);
-      ctx.drawImage(v, sx, sy, sw, sh, 0, 0, c.width, c.height);
+      const { sx, sy, sw, sh } = getCropPixels(srcW, srcH);
+      ctx.drawImage(v, sx, sy, sw, sh, 0, 0, targetW, targetH);
       ctx.filter = "none";
 
       const blob = await new Promise<Blob>((resolve) => c.toBlob((b) => resolve(b!), "image/png"));
@@ -3545,6 +3553,7 @@ function PageContent() {
           <div className="relative rounded-3xl border border-white/10 bg-black/40 overflow-hidden flex-1 min-h-0">
             <video
               ref={videoRef}
+              onClick={savePhoto}
               autoPlay
               playsInline
               muted
