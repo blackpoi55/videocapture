@@ -16,7 +16,10 @@ const getErrorMessage = (error: unknown): string => {
 };
 
 export const GET = <T = unknown>(URL: string, config: AxiosRequestConfig = {}): Promise<T | ApiError> => {
-  const Token = localStorage.getItem("intraview_token");
+  let Token = "";
+  if (typeof window !== "undefined") {
+    Token = localStorage.getItem("intraview_token") || "";
+  }
   const headers = {
     Authorization: Token ? `Bearer ${Token}` : "",
     "Content-Type": "application/json",
