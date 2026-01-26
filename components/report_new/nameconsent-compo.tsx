@@ -26,11 +26,11 @@ type FieldProps = {
 
 const Field = ({ label, value }: FieldProps) => {
   return (
-    <div className="grid grid-cols-[60px_1fr] gap-1">
+    <div className="grid grid-cols-[70px_1fr] gap-1">
       <div className="font-semibold text-blue-900 whitespace-nowrap">
         {label} :
       </div>
-      <div className="border-b border-black min-h-[14px]">
+      <div className=" min-h-[14px]">
         {value || ""}
       </div>
     </div>
@@ -62,7 +62,7 @@ export default function PatientInfoSection({ data }: { data: any }) {
   const fullName = `${data?.data?.prefix_name || ""}${data?.data?.firstname || ""} ${data?.data?.lastname || ""}`;
   console.log("Full Name:", fullName);
   return (
-    <div className="p-2 space-y-1 text-[9px]">
+    <div className="p-2 space-y-1 text-[10px]">
 
       {/* NAME / AGE / AN */}
       <div className="flex gap-6">

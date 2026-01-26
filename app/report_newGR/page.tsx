@@ -18,7 +18,7 @@ async function getPersonHistory(id: string) {
 }
 
 export default async function ReportPage() {
-  const data = await getPersonHistory("1071");
+  const data = await getPersonHistory("1082");
 
   return (
     <Suspense fallback={<div>Loading…</div>}>

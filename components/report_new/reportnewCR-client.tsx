@@ -12,7 +12,7 @@ export default function ColonoscopyReportPage({ data }: Props) {
     console.log("Colonoscopy Report Data:", data);
     return (
         <main>
-            <div className="bg-white w-[210mm] min-h-[297mm] mx-auto p-6 shadow text-[9px] text-gray-800">
+            <div className="bg-white w-[210mm] min-h-[297mm] mx-auto p-6 shadow text-[10px] text-gray-800">
 
                 {/* TOP HEADER */}
                 <div className="text-center mb-2">
@@ -28,7 +28,7 @@ export default function ColonoscopyReportPage({ data }: Props) {
                 <div className="grid grid-cols-[2fr_1fr] gap-2">
 
                     {/* LEFT PANEL */}
-                    <div className="border border-black p-2 space-y-1">
+                    <div className="p-2 space-y-1">
 
                         {/* ส่ง data ลงไป */}
                         <Nameconsent data={data} />
@@ -56,7 +56,7 @@ export default function ColonoscopyReportPage({ data }: Props) {
                     </div>
 
                     {/* RIGHT IMAGE PANEL */}
-                    <div className="space-y-2">
+                    <div className="space-y-2 justify-self-end">
                         <ImageBox label="A. Terminal ileum" />
                         <ImageBox label="B. appendix orifice" />
                         <ImageBox label="C. Cecum" />
@@ -100,7 +100,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function ImageBox({ label }: { label: string }) {
     return (
         <div>
-            <div className="border h-[160px] flex items-center justify-center text-gray-400">
+            <div className="border w-[160px] h-[160px] flex items-center justify-center text-gray-400">
                 รอดึงรูป
             </div>
             <div className="text-[11px] mt-1">{label}</div>

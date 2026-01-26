@@ -11,11 +11,11 @@ function Field({
   value?: React.ReactNode;
 }) {
   return (
-    <div className="grid grid-cols-[100px_1fr] gap-1">
+    <div className="grid grid-cols-[110px_1fr] gap-1">
       <div className="font-semibold text-blue-900 whitespace-nowrap">
         {label} :
       </div>
-      <div className="border-b border-black min-h-[14px]">
+      <div className="min-h-[14px]">
         {value || ""}
       </div>
     </div>
@@ -34,7 +34,7 @@ function Section({
       <div className="font-semibold text-blue-900">
         {title}
       </div>
-      <div className="ml-3 text-green-800 leading-relaxed text-[9px]">
+      <div className="ml-3 text-green-800 leading-relaxed text-[10px]">
         {children}
       </div>
     </div>
@@ -45,7 +45,7 @@ function Section({
 
 export default function FindingsSection({ data }: { data: any }) {
   return (
-    <div className="space-y-1 text-[9px] text-green-800">
+    <div className="space-y-1 text-[10px] text-green-800">
 
       <Section title="FINDINGS">
         OROPHARYNX : {data?.data?.finding_oropharynx || ""} <br />

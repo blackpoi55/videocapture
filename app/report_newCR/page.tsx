@@ -7,7 +7,7 @@ import { getpersonhistorybyid } from "@/action/api";
 
 
 export default async function ReportPage() {
-  const data = await getpersonhistorybyid("1071");
+  const data = await getpersonhistorybyid("1082");
 console.log("dataaaaaaaaaaaaaaa",data)
   return (
     <Suspense fallback={<div>Loading…</div>}>

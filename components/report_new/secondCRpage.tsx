@@ -11,7 +11,7 @@ export default function SecondCRPage({ data }: Props) {
 
   return (
     <main>
-      <div className="bg-white w-[210mm] min-h-[297mm] mx-auto p-6 shadow text-[9px] text-gray-800">
+      <div className="bg-white w-[210mm] min-h-[297mm] mx-auto p-6 shadow text-[10px] text-gray-800">
 
         {/* TOP HEADER */}
         <div className="text-center mb-2">
@@ -24,7 +24,7 @@ export default function SecondCRPage({ data }: Props) {
           </div>
         </div>
 
-        <div className="border border-black p-2">
+        <div className=" p-2">
 
           {/* NAME / AGE / AN */}
           <div className="flex gap-6">
@@ -96,7 +96,7 @@ function Field({ label, value }: { label: string; value?: React.ReactNode }) {
       <div className="font-semibold text-blue-900 whitespace-nowrap">
         {label} :
       </div>
-      <div className="border-b border-black min-h-[14px]">
+      <div className="min-h-[14px]">
         {value || ""}
       </div>
     </div>
