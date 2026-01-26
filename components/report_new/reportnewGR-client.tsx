@@ -27,34 +27,57 @@ export default function GastroscopyReportPage({ data }: Props) {
         <div className="grid grid-cols-[2fr_1fr] gap-2">
 
           {/* LEFT PANEL */}
-          <div className=" p-2 space-y-1">
+          <div className="p-2">
 
-            {/* HEADER INFO */}
-            <Nameconsent data={data} />
+            {/* ===== GRID: TEXT | DIAGRAM ===== */}
+            <div className="grid grid-cols-[1fr_180px] gap-3 items-start">
 
-            {/* FINDINGS */}
-            <FindhisGR data={data} />
+              {/* LEFT: TEXT CONTENT */}
+              <div className="space-y-1">
+                <Nameconsent data={data} />
 
-            {/* RAPID UREASE TEST */}
-            <div className="font-semibold text-blue-900 whitespace-nowrap mt-1">
-              RAPID UREASE TEST
+                <FindhisGR data={data} />
+
+                <div className="font-semibold text-blue-900 whitespace-nowrap mt-1">
+                  RAPID UREASE TEST
+                </div>
+
+                <div className="flex gap-4 text-gray-700">
+                  <Checkbox
+                    label="DONE"
+                    checked={!!data?.data?.rapidtestresult_name}
+                  />
+                  <Checkbox
+                    label="POSITIVE"
+                    checked={data?.data?.rapidtestresult_name === "Positive"}
+                  />
+                  <Checkbox
+                    label="NEGATIVE"
+                    checked={data?.data?.rapidtestresult_name === "Negative"}
+                  />
+                  <Checkbox
+                    label="PENDING"
+                    checked={data?.data?.rapidtestresult_name === "Pending"}
+                  />
+                </div>
+              </div>
+
+              {/* RIGHT: DIAGRAM (ตำแหน่งวงน้ำเงิน) */}
+              <div className="flex justify-center mt-6">
+                <div className="w-[170px] text-center">
+                                   <img
+                                        src={data?.data?.operativetemplateimagepath || ""}
+                                        alt="Operative Template Diagram"
+                                        className="w-full object-contain"
+                                    />
+                  <div className="text-[10px] font-semibold mt-1">
+                    LOWER GI TRACT
+                  </div>
+                </div>
+              </div>
+
             </div>
-
-            <div className="flex gap-4 text-gray-700">
-              <Checkbox label="DONE" checked={!!data?.data?.rapidtestresult_name} />
-              <Checkbox
-                label="POSITIVE"
-                checked={data?.data?.rapidtestresult_name === "Positive"}
-              />
-              <Checkbox
-                label="NEGATIVE"
-                checked={data?.data?.rapidtestresult_name === "Negative"}
-              />
-              <Checkbox
-                label="PENDING"
-                checked={data?.data?.rapidtestresult_name === "Pending"}
-              />
-            </div>
+            {/* ===== END GRID ===== */}
 
             <Field
               label="ESTIMATED BLOOD LOSS"
@@ -117,7 +140,7 @@ function Field({
       <div className="font-semibold text-blue-900 whitespace-nowrap">
         {label} :
       </div>
-      <div className=" min-h-[14px]">
+      <div className="min-h-[14px]">
         {value || ""}
       </div>
     </div>
@@ -133,7 +156,7 @@ function ImageBox({
 }) {
   return (
     <div>
-      <div className="border w-[160px] h-[160px] flex items-center justify-center text-gray-400">
+      <div className="border w-[140px] h-[140px] flex items-center justify-center text-gray-400">
         {src ? (
           <img src={src} alt={label} className="w-full h-full object-cover" />
         ) : (

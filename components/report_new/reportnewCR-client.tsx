@@ -9,7 +9,6 @@ type Props = {
 };
 
 export default function ColonoscopyReportPage({ data }: Props) {
-    console.log("Colonoscopy Report Data:", data);
     return (
         <main>
             <div className="bg-white w-[210mm] min-h-[297mm] mx-auto p-6 shadow text-[10px] text-gray-800">
@@ -28,20 +27,64 @@ export default function ColonoscopyReportPage({ data }: Props) {
                 <div className="grid grid-cols-[2fr_1fr] gap-2">
 
                     {/* LEFT PANEL */}
-                    <div className="p-2 space-y-1">
+                    <div className="p-2">
 
-                        {/* ส่ง data ลงไป */}
-                        <Nameconsent data={data} />
+                        {/* ===== GRID: TEXT | DIAGRAM ===== */}
+                        <div className="grid grid-cols-[1fr_180px] gap-3 items-start">
 
-                        <Field label="BOWEL PREPARATION REGIMEN" value={data?.data?.bowelPreparationRegimen} />
-                        <Field label="BOWEL PREPARATION RESULTS" value={data?.data?.bowelPreparationResults} />
+                            {/* LEFT: TEXT CONTENT */}
+                            <div className="space-y-1">
+                                <Nameconsent data={data} />
 
-                        <FindhisCR data={data} />
+                                <Field
+                                    label="BOWEL PREPARATION REGIMEN"
+                                    value={data?.data?.bowelPreparationRegimen}
+                                />
 
-                        <Field label="ESTIMATED BLOOD LOSS" value={data?.data?.estimatedBloodLoss} />
-                        <Field label="THERAPY" value={data?.data?.therapy} />
-                        <Field label="RECOMMENDATION" value={data?.data?.recommendation} />
-                        <Field label="NOTES / COMMENTS" value={data?.data?.comments} />
+                                <Field
+                                    label="BOWEL PREPARATION RESULTS"
+                                    value={data?.data?.bowelPreparationResults}
+                                />
+
+                                <FindhisCR data={data} />
+                            </div>
+
+                            {/* RIGHT: LOWER GI TRACT DIAGRAM */}
+                            <div className="flex justify-center mt-6">
+                                <div className="w-[170px] text-center">
+                                    <img
+                                        src={data?.data?.operativetemplateimagepath || ""}
+                                        alt="Operative Template Diagram"
+                                        className="w-full object-contain"
+                                    />
+                                    <div className="text-[10px] font-semibold mt-1">
+                                        LOWER GI TRACT
+                                    </div>
+                                </div>
+                            </div>
+
+                        </div>
+                        {/* ===== END GRID ===== */}
+
+                        <Field
+                            label="ESTIMATED BLOOD LOSS"
+                            value={data?.data?.estimatedBloodLoss}
+                        />
+
+                        <Field
+                            label="THERAPY"
+                            value={data?.data?.therapy}
+                        />
+
+                        <Field
+                            label="RECOMMENDATION"
+                            value={data?.data?.recommendation}
+                        />
+
+                        <Field
+                            label="NOTES / COMMENTS"
+                            value={data?.data?.comments}
+                        />
 
                         <div className="mt-14">
                             SIGNATURE ________________________________
@@ -75,24 +118,17 @@ export default function ColonoscopyReportPage({ data }: Props) {
     );
 }
 
-function Field({ label, value }: { label: string; value?: string }) {
-  return (
-    <div className="grid grid-cols-[160px_1fr] items-start">
-      <div className="font-semibold text-blue-900 whitespace-nowrap">
-        {label} :
-      </div>
-      <div className="text-gray-700">
-        {value || "-"}
-      </div>
-    </div>
-  );
-}
+/* ---------- Small Components ---------- */
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Field({ label, value }: { label: string; value?: string }) {
     return (
-        <div className="mt-2">
-            <div className="font-semibold text-blue-900">{title}</div>
-            <div className="ml-3 text-gray-600">{children}</div>
+        <div className="grid grid-cols-[160px_1fr] items-start">
+            <div className="font-semibold text-blue-900 whitespace-nowrap">
+                {label} :
+            </div>
+            <div className="text-gray-700 min-h-[14px]">
+                {value || "-"}
+            </div>
         </div>
     );
 }
@@ -100,7 +136,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function ImageBox({ label }: { label: string }) {
     return (
         <div>
-            <div className="border w-[160px] h-[160px] flex items-center justify-center text-gray-400">
+            <div className="border w-[140px] h-[140px] flex items-center justify-center text-gray-400">
                 รอดึงรูป
             </div>
             <div className="text-[11px] mt-1">{label}</div>
