@@ -19,6 +19,9 @@ export const getSelectTypes = () => {
 export const getvaluebyselecttypeid = (id: string) => {
   return GET("/select-values/getvaluebyselecttypeid/"+id);
 }
+export const getvaluebyselecttypeidonlyactive = (id: string) => {
+  return GET("/select-values/getvaluebyselecttypeidonlyactive/"+id);
+}
 
 export const postSelectType = (data: unknown) => {
   return POST("/select-types", data);
@@ -81,4 +84,7 @@ export const deletecamerapreset = (id: string) => {
 export const updateCamera = (data: unknown) => {
   return POST("/history/updateCamera", data);
 };
- 
+
+export const uploadMultiple = (data: FormData) => {
+  return POST("/uploads/multiple", data);
+};

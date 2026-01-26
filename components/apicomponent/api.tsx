@@ -35,6 +35,7 @@ export const GET = <T = unknown>(URL: string, config: AxiosRequestConfig = {}): 
 
 export const POST = <T = unknown, D = unknown>(URL: string, data: D): Promise<T | ApiError> => {
   const Token = localStorage.getItem("intraview_token");
+  const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
   console.log("first", `${API}${URL}`);
   return axios({
     method: 'POST',
@@ -42,7 +43,7 @@ export const POST = <T = unknown, D = unknown>(URL: string, data: D): Promise<T 
     data: data,
     headers: {
       Authorization: Token ? `Bearer ${Token}` : "",
-      "Content-Type": "application/json",
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
     },
   }).then((result) => {
     // console.log('getCookie', result.data)

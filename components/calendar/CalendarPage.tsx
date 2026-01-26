@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { Calendar, dateFnsLocalizer, SlotInfo, View, Views } from "react-big-calendar";
 import {
   addDays,
@@ -23,7 +23,7 @@ import {
   getbyHN,
   getcamerapreset,
   getSelectTypes,
-  getvaluebyselecttypeid,
+  getvaluebyselecttypeidonlyactive,
   postCalendagetdata,
   postCalendarCase,
   putCalendarCase,
@@ -682,6 +682,7 @@ export default function CalendarPage() {
   const [cameraPresetOptions, setCameraPresetOptions] = useState<SelectOption[]>([]);
   const [procedureRoomLoading, setProcedureRoomLoading] = useState(false);
   const [procedureRoomFilter, setProcedureRoomFilter] = useState("");
+  const autoFetchHnRef = useRef<string | null>(null);
   const fieldsDisabled = patientStatus !== "found";
   const fieldClass =
     "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-sky-300 disabled:bg-slate-100 disabled:text-slate-400";
@@ -829,25 +830,25 @@ export default function CalendarPage() {
           diagnosisRes,
           cameraPresetRes,
         ] = await Promise.all([
-          typeIds.prefix ? getvaluebyselecttypeid(typeIds.prefix) : Promise.resolve({ data: [] }),
-          typeIds.nationality ? getvaluebyselecttypeid(typeIds.nationality) : Promise.resolve({ data: [] }),
-          typeIds.sex ? getvaluebyselecttypeid(typeIds.sex) : Promise.resolve({ data: [] }),
-          typeIds.patientType ? getvaluebyselecttypeid(typeIds.patientType) : Promise.resolve({ data: [] }),
-          typeIds.procedureRoom ? getvaluebyselecttypeid(typeIds.procedureRoom) : Promise.resolve({ data: [] }),
-          typeIds.procedure ? getvaluebyselecttypeid(typeIds.procedure) : Promise.resolve({ data: [] }),
-          typeIds.mainProcedure ? getvaluebyselecttypeid(typeIds.mainProcedure) : Promise.resolve({ data: [] }),
-          typeIds.financial ? getvaluebyselecttypeid(typeIds.financial) : Promise.resolve({ data: [] }),
-          typeIds.indication ? getvaluebyselecttypeid(typeIds.indication) : Promise.resolve({ data: [] }),
-          typeIds.caseType ? getvaluebyselecttypeid(typeIds.caseType) : Promise.resolve({ data: [] }),
-          typeIds.rapid ? getvaluebyselecttypeid(typeIds.rapid) : Promise.resolve({ data: [] }),
-          typeIds.histopath ? getvaluebyselecttypeid(typeIds.histopath) : Promise.resolve({ data: [] }),
-          typeIds.sub ? getvaluebyselecttypeid(typeIds.sub) : Promise.resolve({ data: [] }),
-          typeIds.anesthe ? getvaluebyselecttypeid(typeIds.anesthe) : Promise.resolve({ data: [] }),
-          typeIds.anestheAssist ? getvaluebyselecttypeid(typeIds.anestheAssist) : Promise.resolve({ data: [] }),
-          typeIds.physician ? getvaluebyselecttypeid(typeIds.physician) : Promise.resolve({ data: [] }),
-          typeIds.nurse ? getvaluebyselecttypeid(typeIds.nurse) : Promise.resolve({ data: [] }),
-          typeIds.staff ? getvaluebyselecttypeid(typeIds.staff) : Promise.resolve({ data: [] }),
-          typeIds.diagnosis ? getvaluebyselecttypeid(typeIds.diagnosis) : Promise.resolve({ data: [] }),
+          typeIds.prefix ? getvaluebyselecttypeidonlyactive(typeIds.prefix) : Promise.resolve({ data: [] }),
+          typeIds.nationality ? getvaluebyselecttypeidonlyactive(typeIds.nationality) : Promise.resolve({ data: [] }),
+          typeIds.sex ? getvaluebyselecttypeidonlyactive(typeIds.sex) : Promise.resolve({ data: [] }),
+          typeIds.patientType ? getvaluebyselecttypeidonlyactive(typeIds.patientType) : Promise.resolve({ data: [] }),
+          typeIds.procedureRoom ? getvaluebyselecttypeidonlyactive(typeIds.procedureRoom) : Promise.resolve({ data: [] }),
+          typeIds.procedure ? getvaluebyselecttypeidonlyactive(typeIds.procedure) : Promise.resolve({ data: [] }),
+          typeIds.mainProcedure ? getvaluebyselecttypeidonlyactive(typeIds.mainProcedure) : Promise.resolve({ data: [] }),
+          typeIds.financial ? getvaluebyselecttypeidonlyactive(typeIds.financial) : Promise.resolve({ data: [] }),
+          typeIds.indication ? getvaluebyselecttypeidonlyactive(typeIds.indication) : Promise.resolve({ data: [] }),
+          typeIds.caseType ? getvaluebyselecttypeidonlyactive(typeIds.caseType) : Promise.resolve({ data: [] }),
+          typeIds.rapid ? getvaluebyselecttypeidonlyactive(typeIds.rapid) : Promise.resolve({ data: [] }),
+          typeIds.histopath ? getvaluebyselecttypeidonlyactive(typeIds.histopath) : Promise.resolve({ data: [] }),
+          typeIds.sub ? getvaluebyselecttypeidonlyactive(typeIds.sub) : Promise.resolve({ data: [] }),
+          typeIds.anesthe ? getvaluebyselecttypeidonlyactive(typeIds.anesthe) : Promise.resolve({ data: [] }),
+          typeIds.anestheAssist ? getvaluebyselecttypeidonlyactive(typeIds.anestheAssist) : Promise.resolve({ data: [] }),
+          typeIds.physician ? getvaluebyselecttypeidonlyactive(typeIds.physician) : Promise.resolve({ data: [] }),
+          typeIds.nurse ? getvaluebyselecttypeidonlyactive(typeIds.nurse) : Promise.resolve({ data: [] }),
+          typeIds.staff ? getvaluebyselecttypeidonlyactive(typeIds.staff) : Promise.resolve({ data: [] }),
+          typeIds.diagnosis ? getvaluebyselecttypeidonlyactive(typeIds.diagnosis) : Promise.resolve({ data: [] }),
           getcamerapreset(),
         ]);
         if (!active) return;
@@ -998,11 +999,19 @@ export default function CalendarPage() {
   }, [filteredMonthEvents, selectedEvent]);
 
   useEffect(() => {
-    if (!modalOpen || modalMode !== "edit") return;
+    if (!modalOpen || modalMode !== "edit") {
+      autoFetchHnRef.current = null;
+      return;
+    }
     const hn = caseForm.hn.trim();
-    if (!hn) return;
+    if (!hn) {
+      autoFetchHnRef.current = null;
+      return;
+    }
     if (hasPatientDetails(caseForm.patient)) return;
     if (autoFetchHn) return;
+    if (autoFetchHnRef.current === hn) return;
+    autoFetchHnRef.current = hn;
     setAutoFetchHn(true);
     void fetchPatientByHn(hn).finally(() => setAutoFetchHn(false));
   }, [modalOpen, modalMode, caseForm.hn, caseForm.patient, autoFetchHn]);
@@ -1099,6 +1108,7 @@ export default function CalendarPage() {
   const handleHnBlur = async (hndata: string) => {
     const hn = hndata || caseForm.hn.trim();
     if (!hn) return;
+    autoFetchHnRef.current = hn;
     const found = await fetchPatientByHn(hn);
     if (found === false) {
       Swal.fire({ icon: "info", title: "ไม่พบข้อมูลผู้ป่วย", text: "ตรวจสอบ HN อีกครั้ง" });

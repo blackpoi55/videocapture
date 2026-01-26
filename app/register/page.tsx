@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Swal from "sweetalert2";
-import { getbyHN, getSelectTypes, getvaluebyselecttypeid, postPatient, putPatient } from "@/action/api";
+import { getbyHN, getSelectTypes, getvaluebyselecttypeidonlyactive, postPatient, putPatient } from "@/action/api";
 import { SELECT_TYPE_CODES, SELECT_TYPE_IDS } from "@/config";
 
 type SelectType = {
@@ -290,10 +290,10 @@ export default function RegisterPage() {
           patientType: resolveTypeId("patientType", types),
         };
         const [prefixRes, nationalityRes, sexRes, patientTypeRes] = await Promise.all([
-          typeIds.prefix ? getvaluebyselecttypeid(typeIds.prefix) : Promise.resolve({ data: [] }),
-          typeIds.nationality ? getvaluebyselecttypeid(typeIds.nationality) : Promise.resolve({ data: [] }),
-          typeIds.sex ? getvaluebyselecttypeid(typeIds.sex) : Promise.resolve({ data: [] }),
-          typeIds.patientType ? getvaluebyselecttypeid(typeIds.patientType) : Promise.resolve({ data: [] }),
+          typeIds.prefix ? getvaluebyselecttypeidonlyactive(typeIds.prefix) : Promise.resolve({ data: [] }),
+          typeIds.nationality ? getvaluebyselecttypeidonlyactive(typeIds.nationality) : Promise.resolve({ data: [] }),
+          typeIds.sex ? getvaluebyselecttypeidonlyactive(typeIds.sex) : Promise.resolve({ data: [] }),
+          typeIds.patientType ? getvaluebyselecttypeidonlyactive(typeIds.patientType) : Promise.resolve({ data: [] }),
         ]);
         if (!active) return;
         setPrefixOptions(parseSelectOptions((prefixRes as { data?: unknown })?.data ?? prefixRes));

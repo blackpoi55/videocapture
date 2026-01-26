@@ -6,6 +6,7 @@ import { deleteEntry, humanSize, isImageType, listFiles, writeFile } from "./fil
 import type { DirHandle, FileItem } from "./types";
 import { PillButton } from "./ui";
 import { Thumb } from "./Thumb";
+import { uploadMultiple } from "@/action/api";
 
 type SelectedImage = {
   name: string;
@@ -17,7 +18,7 @@ type TemplatePlacement = {
   y: number;
 };
 
-const TEMPLATE_SRC = "/images/type/type1.jpg";
+const TEMPLATE_SRC = "/images/type/OPERATIVETEMPLATE1IMAGE.jpg";
 
 const getLabelForIndex = (index: number) => (index >= 0 && index < 26 ? String.fromCharCode(65 + index) : "?");
 
@@ -30,8 +31,19 @@ export function ImagePickerModal(props: {
   onEditChosen: (file: FileItem) => void;
   onExportReport: () => Promise<void>;
   refreshSignal?: number;
+  templateSrc?: string | null;
 }) {
-  const { open, onClose, originalDir, chooseDir, onRefreshAfter, onEditChosen, onExportReport, refreshSignal } = props;
+  const {
+    open,
+    onClose,
+    originalDir,
+    chooseDir,
+    onRefreshAfter,
+    onEditChosen,
+    onExportReport,
+    refreshSignal,
+    templateSrc,
+  } = props;
   const [left, setLeft] = useState<FileItem[]>([]);
   const [right, setRight] = useState<FileItem[]>([]);
   const [busy, setBusy] = useState(false);
@@ -39,6 +51,7 @@ export function ImagePickerModal(props: {
   const [selected, setSelected] = useState<SelectedImage[]>([]);
   const [activeLabel, setActiveLabel] = useState("");
   const [placements, setPlacements] = useState<Record<string, TemplatePlacement>>({});
+  const [uploadMap, setUploadMap] = useState<Record<string, unknown>>({});
 
   const chosenNames = useMemo(() => new Set(right.map((x) => x.name)), [right]);
   const selectedNames = useMemo(() => new Set(selected.map((item) => item.name)), [selected]);
@@ -50,8 +63,9 @@ export function ImagePickerModal(props: {
         label: getLabelForIndex(index),
         name: item.name,
         note: item.note || "",
+        upload: uploadMap[item.name] ?? null,
       })),
-    [selected]
+    [selected, uploadMap]
   );
   const placementPayload = useMemo(
     () =>
@@ -62,15 +76,20 @@ export function ImagePickerModal(props: {
       })),
     [placements]
   );
+  const resolvedTemplateSrc = useMemo(() => {
+    if (!templateSrc) return TEMPLATE_SRC;
+    return templateSrc.replace(/\\/g, "/");
+  }, [templateSrc]);
+
   const combinedPayload = useMemo(
     () => ({
       images: selectionPayload,
       template: {
-        src: TEMPLATE_SRC,
+        src: resolvedTemplateSrc,
         placements: placementPayload,
       },
     }),
-    [selectionPayload, placementPayload]
+    [selectionPayload, placementPayload, resolvedTemplateSrc]
   );
 
   const refresh = useCallback(async () => {
@@ -79,6 +98,20 @@ export function ImagePickerModal(props: {
     setLeft(a.filter((x) => isImageType(x.type, x.name)));
     setRight(b.filter((x) => isImageType(x.type, x.name)));
   }, [originalDir, chooseDir]);
+
+  const uploadFileToApi = useCallback(async (file: File) => {
+    if (uploadMap[file.name]) return;
+    const data = new FormData();
+    data.append("files", file, file.name);
+    const response = await uploadMultiple(data);
+    if ((response as { error?: unknown })?.error) {
+      alertErr("อัปโหลดไม่สำเร็จ", (response as { message?: string })?.message || "unknown error");
+      return;
+    }
+    const dataList = (response as { data?: Array<{ path?: string }> })?.data ?? [];
+    const path = dataList[0]?.path || null;
+    setUploadMap((prev) => ({ ...prev, [file.name]: path }));
+  }, [uploadMap]);
 
   useEffect(() => {
     if (!open) return;
@@ -144,6 +177,12 @@ export function ImagePickerModal(props: {
       try {
         setBusy(true);
         await deleteEntry(chooseDir, name);
+        setUploadMap((prev) => {
+          if (!prev[name]) return prev;
+          const next = { ...prev };
+          delete next[name];
+          return next;
+        });
         await refresh();
         await onRefreshAfter();
         alertOk("ลบแล้ว");
@@ -156,12 +195,19 @@ export function ImagePickerModal(props: {
     [chooseDir, refresh, onRefreshAfter]
   );
 
-  const addToSelection = useCallback((name: string) => {
-    setSelected((prev) => {
-      if (prev.some((item) => item.name === name)) return prev;
-      return [...prev, { name, note: "" }];
-    });
-  }, []);
+  const addToSelection = useCallback(
+    (name: string) => {
+      setSelected((prev) => {
+        if (prev.some((item) => item.name === name)) return prev;
+        return [...prev, { name, note: "" }];
+      });
+      const file = chooseMap.get(name);
+      if (file) {
+        void file.handle.getFile().then(uploadFileToApi).catch(() => {});
+      }
+    },
+    [chooseMap, uploadFileToApi]
+  );
 
   const removeFromSelection = useCallback((name: string) => {
     setSelected((prev) => prev.filter((item) => item.name !== name));
@@ -189,7 +235,8 @@ export function ImagePickerModal(props: {
       const noteMap = new Map(prev.map((item) => [item.name, item.note]));
       return right.map((item) => ({ name: item.name, note: noteMap.get(item.name) || "" }));
     });
-  }, [right]);
+    void Promise.all(right.map(async (item) => uploadFileToApi(await item.handle.getFile()))).catch(() => {});
+  }, [right, uploadFileToApi]);
 
   const clearSelection = useCallback(() => {
     setSelected([]);
@@ -420,6 +467,7 @@ export function ImagePickerModal(props: {
           {selected.length === 0 && <div className="text-sm text-white/50 px-1">ยังไม่มีรูปที่เลือก</div>}
           {stepLabels.map((label, index) => {
             const item = selected[index];
+            const file = item ? chooseMap.get(item.name) : undefined;
             const active = activeLabel === label;
             return (
               <button
@@ -432,10 +480,17 @@ export function ImagePickerModal(props: {
                     : "border-white/10 bg-white/[0.04] text-white/70"
                 }`}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-rose-400/60 text-rose-200">
                     {label}
                   </span>
+                  {file ? (
+                    <Thumb file={file} />
+                  ) : (
+                    <div className="h-14 w-14 rounded-2xl border border-white/10 bg-white/[0.04] flex items-center justify-center text-xs text-white/40">
+                      FILE
+                    </div>
+                  )}
                   <span className="truncate">{item?.name || "Unknown"}</span>
                 </div>
                 {item?.note && <div className="mt-1 text-[10px] text-white/50 truncate">{item.note}</div>}
@@ -455,13 +510,17 @@ export function ImagePickerModal(props: {
           <span>Template</span>
           <span className="text-xs text-white/50">{activeLabel ? `กำลังวาง ${activeLabel}` : "เลือกตัวอักษรก่อนคลิก"}</span>
         </div>
-        <div className="flex-1 overflow-auto px-5 pb-5">
-          <div className="relative w-full max-w-[900px]">
+        <div className="flex-1 overflow-hidden px-5 pb-5">
+          <div className="h-full w-full flex items-center justify-center">
             <div
-              className="relative w-full overflow-hidden rounded-3xl border border-white/10 bg-black/30"
+              className="relative aspect-square w-full max-w-[900px] max-h-full overflow-hidden rounded-3xl border border-white/10 bg-black/30"
               onClick={handleTemplateClick}
             >
-              <img src={TEMPLATE_SRC} alt="template" className="block w-full h-auto select-none" />
+              <img
+                src={resolvedTemplateSrc}
+                alt="template"
+                className="block h-full w-full object-contain select-none"
+              />
               {Object.entries(placements).map(([label, pos]) => (
                 <div
                   key={label}
@@ -527,7 +586,7 @@ export function ImagePickerModal(props: {
               </button>
             </div>
             <div className="h-6 w-px bg-white/10" />
-            <PillButton onClick={() => refresh()} disabled={busy}>
+            {/* <PillButton onClick={() => refresh()} disabled={busy}>
               Refresh
             </PillButton>
             <PillButton
@@ -542,7 +601,7 @@ export function ImagePickerModal(props: {
               disabled={busy}
             >
               ออกรีพอร์ท
-            </PillButton>
+            </PillButton> */}
             <PillButton tone="danger" onClick={onClose} disabled={busy}>
               ปิด
             </PillButton>
@@ -551,8 +610,29 @@ export function ImagePickerModal(props: {
 
         {step === 1 ? renderStep1() : step === 2 ? renderStep2() : renderStep3()}
 
-        <div className="px-5 py-3 border-t border-white/10 text-xs text-white/45">
-          เคล็ดลับ: Step 2 ใช้รูปจาก choose เป็น master เท่านั้น และ Step 3 จะใช้ตัวอักษร A-Z ตามลำดับที่จัดไว้
+        <div className="px-5 py-3 border-t border-white/10 text-xs text-white/45 flex flex-wrap items-center justify-between gap-3">
+          <div>เคล็ดลับ: Step 2 ใช้รูปจาก choose เป็น master เท่านั้น และ Step 3 จะใช้ตัวอักษร A-Z ตามลำดับที่จัดไว้</div>
+          <div className="flex items-center gap-2">
+            <PillButton onClick={() => setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))} disabled={step === 1}>
+              Back
+            </PillButton>
+            <PillButton
+              onClick={() => {
+                if (step === 1) {
+                  if (!canGoStep2) return;
+                  setStep(2);
+                  return;
+                }
+                if (step === 2) {
+                  if (!canGoStep3) return;
+                  setStep(3);
+                }
+              }}
+              disabled={(step === 1 && !canGoStep2) || (step === 2 && !canGoStep3) || step === 3}
+            >
+              Next
+            </PillButton>
+          </div>
         </div>
       </div>
     </div>

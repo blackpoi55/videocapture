@@ -336,6 +336,7 @@ type CaseDetail = {
   procedure: string;
   physician: string;
   note: string;
+  operativetemplateimagepath: string;
 };
 
 /** ---------------------------
@@ -714,6 +715,7 @@ function PageContent() {
       const physician = normalizeText(row.physician_name);
       const note = normalizeText(row.note);
       const caseNo = normalizeText(row.casenumber);
+      const operativetemplateimagepath = normalizeText(row.operativetemplateimagepath);
       const date = parseApiDate(row.casedate);
       const cameraId = normalizeText(row.camera_id ?? row.cameraId ?? row.cameraid);
       const cameraName = normalizeText(row.camera_name);
@@ -749,6 +751,7 @@ function PageContent() {
         procedure,
         physician,
         note,
+        operativetemplateimagepath,
       });
       if (date) setPickedDate(date);
       if (hn) setHnInput(hn);
@@ -2187,9 +2190,9 @@ function PageContent() {
                       <PillButton onClick={openPicker} disabled={!caseFolderReady}>
                         เลือก/จัดการรูป
                       </PillButton>
-                      <PillButton onClick={refreshFiles} disabled={!originalDir}>
+                      {/* <PillButton onClick={refreshFiles} disabled={!originalDir}>
                         Refresh Files
-                      </PillButton>
+                      </PillButton> */}
                     </div>
                   }
                 >
@@ -2517,6 +2520,7 @@ function PageContent() {
           }}
           onExportReport={exportReport}
           refreshSignal={pickerRefreshTick}
+          templateSrc={caseDetail?.operativetemplateimagepath || null}
         />
 
         <CameraAdjustModal open={camAdjustOpen} onClose={() => setCamAdjustOpen(false)}>
