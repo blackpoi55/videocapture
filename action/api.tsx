@@ -88,3 +88,7 @@ export const updateCamera = (data: unknown) => {
 export const uploadMultiple = (data: FormData) => {
   return POST("/uploads/multiple", data);
 };
+
+export const postreportimage = (data: unknown) => {
+  return POST("/piturereports/create-many", data);
+};

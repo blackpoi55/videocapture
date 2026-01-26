@@ -2521,6 +2521,7 @@ function PageContent() {
           onExportReport={exportReport}
           refreshSignal={pickerRefreshTick}
           templateSrc={caseDetail?.operativetemplateimagepath || null}
+          caseNumber={caseIdParam || ""}
         />
 
         <CameraAdjustModal open={camAdjustOpen} onClose={() => setCamAdjustOpen(false)}>
