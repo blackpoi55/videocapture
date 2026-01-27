@@ -292,41 +292,41 @@ export const MasterSection = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Master Data</h2>
-        <p className="text-sm text-slate-500">จัดการข้อมูล master สำหรับ dropdown ต่าง ๆ</p>
+        <h2 className="text-lg font-semibold text-white">Master Data</h2>
+        <p className="text-sm text-white/50">จัดการข้อมูล master สำหรับ dropdown ต่าง ๆ</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[450px_1fr]">
-        <aside className="rounded-2xl border border-slate-200 bg-white/90 p-4">
+        <aside className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <div className="text-xs uppercase tracking-[0.2em] text-slate-400">Types</div>
-              <div className="text-sm font-semibold text-slate-700">Select Type</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-white/40">Types</div>
+              <div className="text-sm font-semibold text-white/80">Select Type</div>
             </div>
             <div className="flex items-center gap-3">
-              {loading && <span className="text-xs text-slate-400">กำลังโหลด...</span>}
+              {loading && <span className="text-xs text-white/40">กำลังโหลด...</span>}
               <button
                 type="button"
                 onClick={() => openTypeModal("add")}
-                className="rounded-full border border-teal-300/50 bg-teal-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-teal-700 hover:bg-teal-500/20"
+                className="rounded-full border border-teal-300/50 bg-teal-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-teal-200 hover:bg-teal-500/20"
               >
                 เพิ่ม
               </button>
             </div>
           </div>
-          {error && <p className="mt-2 text-xs text-rose-500">{error}</p>}
+          {error && <p className="mt-2 text-xs text-rose-300">{error}</p>}
           <div className="mt-3">
             <input
               type="text"
               value={typeFilter}
               onChange={(event) => setTypeFilter(event.target.value)}
               placeholder="ค้นหา Type"
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+              className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-xs text-white/80 outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
             />
           </div>
           <div className="mt-3 max-h-[520px] space-y-2 overflow-auto pr-1">
             {filteredSelectTypes.length === 0 && (
-              <div className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+              <div className="rounded-xl border border-dashed border-white/10 p-4 text-center text-xs text-white/40">
                 ไม่พบรายการ
               </div>
             )}
@@ -335,27 +335,27 @@ export const MasterSection = () => {
                 key={item.id}
                 className={`w-full rounded-xl border px-3 py-3 text-left text-xs transition ${
                   selectedTypeId === item.id
-                    ? "border-teal-400/60 bg-teal-50/70 text-slate-900 shadow-[0_12px_24px_rgba(20,184,166,0.18)]"
-                    : "border-transparent bg-white text-slate-600 hover:border-white hover:bg-slate-50"
+                    ? "border-teal-400/60 bg-teal-500/10 text-white shadow-[0_12px_24px_rgba(20,184,166,0.2)]"
+                    : "border-transparent bg-transparent text-white/60 hover:border-white/10 hover:bg-white/5"
                 }`}
               >
                 <div className="flex items-start gap-3">
                   <button type="button" onClick={() => setSelectedTypeId(item.id)} className="text-left w-[70%] cursor-pointer">
                     <div className="font-semibold">{item.code}</div>
-                    <div className="text-[11px] text-slate-400">{item.desc}</div>
+                    <div className="text-[11px] text-white/40">{item.desc}</div>
                   </button>
                   <div className=" flex flex-wrap items-center justify-end gap-2 w-[30%]">
                     <button
                       type="button"
                       onClick={() => openTypeModal("edit", item)}
-                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600 hover:border-teal-300 hover:text-teal-600"
+                      className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60 hover:border-teal-300 hover:text-teal-200"
                     >
                       แก้ไข
                     </button>
                     <button
                       type="button"
                       onClick={() => openTypeModal("delete", item)}
-                      className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-600 hover:border-rose-300"
+                      className="rounded-full border border-rose-400/40 bg-rose-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-200 hover:border-rose-300"
                     >
                       ลบ
                     </button>
@@ -366,85 +366,85 @@ export const MasterSection = () => {
           </div>
         </aside>
 
-        <div className="rounded-2xl border border-slate-200 bg-white/90 p-4">
+        <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-xs uppercase tracking-[0.2em] text-slate-400">รายการของประเภท</div>
-              <div className="text-sm font-semibold text-slate-700">{masterForm.code || "-"}</div>
+              <div className="text-xs uppercase tracking-[0.2em] text-white/40">รายการของประเภท</div>
+              <div className="text-sm font-semibold text-white/80">{masterForm.code || "-"}</div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="text-xs text-slate-400">{filteredValueItems.length} รายการ</div>
+              <div className="text-xs text-white/40">{filteredValueItems.length} รายการ</div>
               <button
                 type="button"
                 onClick={() => openValueModal("add")}
-                className="rounded-full border border-teal-300/50 bg-teal-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-teal-700 hover:bg-teal-500/20"
+                className="rounded-full border border-teal-300/50 bg-teal-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-teal-200 hover:bg-teal-500/20"
               >
                 เพิ่ม
               </button>
             </div>
           </div>
-          {detailLoading && <p className="mt-2 text-xs text-slate-400">กำลังโหลดข้อมูล...</p>}
+          {detailLoading && <p className="mt-2 text-xs text-white/40">กำลังโหลดข้อมูล...</p>}
           <div className="mt-3">
             <input
               type="text"
               value={valueFilter}
               onChange={(event) => setValueFilter(event.target.value)}
               placeholder="ค้นหารายการ"
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+              className="w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-xs text-white/80 outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
             />
           </div>
 
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[640px] border-separate border-spacing-0 text-sm">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-[0.24em] text-slate-400">
-                  <th className="border-b border-slate-200/70 px-4 py-3">Code</th>
-                  <th className="border-b border-slate-200/70 px-4 py-3">Description</th>
-                  <th className="border-b border-slate-200/70 px-4 py-3">Status</th>
-                  <th className="border-b border-slate-200/70 px-4 py-3">Actions</th>
+                <tr className="text-left text-[11px] uppercase tracking-[0.24em] text-white/40">
+                  <th className="border-b border-white/10 px-4 py-3">Code</th>
+                  <th className="border-b border-white/10 px-4 py-3">Description</th>
+                  <th className="border-b border-white/10 px-4 py-3">Status</th>
+                  <th className="border-b border-white/10 px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredValueItems.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-6 text-center text-xs text-slate-400">
+                    <td colSpan={4} className="px-4 py-6 text-center text-xs text-white/40">
                       ไม่พบรายการ
                     </td>
                   </tr>
                 )}
 
                 {filteredValueItems.map((item) => (
-                  <tr key={item.id} className="transition hover:bg-slate-50/70">
-                    <td className="border-b border-slate-200/60 px-4 py-3 font-semibold text-slate-700">
+                  <tr key={item.id} className="transition hover:bg-white/5">
+                    <td className="border-b border-white/10 px-4 py-3 font-semibold text-white/80">
                       {item.code || "-"}
                     </td>
-                    <td className="border-b border-slate-200/60 px-4 py-3 text-slate-600">
+                    <td className="border-b border-white/10 px-4 py-3 text-white/60">
                       {item.desc || "-"}
                     </td>
-                    <td className="border-b border-slate-200/60 px-4 py-3">
+                    <td className="border-b border-white/10 px-4 py-3">
                       <span
                         className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] ${
                           item.isActive
-                            ? "bg-teal-100/60 text-teal-700"
-                            : "bg-slate-100 text-slate-500"
+                            ? "bg-teal-500/15 text-teal-200"
+                            : "bg-white/10 text-white/50"
                         }`}
                       >
                         {item.isActive ? "Active" : "Inactive"}
                       </span>
                     </td>
-                    <td className="border-b border-slate-200/60 px-4 py-3">
+                    <td className="border-b border-white/10 px-4 py-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => openValueModal("edit", item)}
-                          className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-600 hover:border-teal-300 hover:text-teal-600"
+                          className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/60 hover:border-teal-300 hover:text-teal-200"
                         >
                           แก้ไข
                         </button>
                         <button
                           type="button"
                           onClick={() => openValueModal("delete", item)}
-                          className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-600 hover:border-rose-300"
+                          className="rounded-full border border-rose-400/40 bg-rose-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-rose-200 hover:border-rose-300"
                         >
                           ลบ
                         </button>
@@ -459,12 +459,12 @@ export const MasterSection = () => {
       </div>
 
       {typeModalOpen && (
-        <div className="fixed inset-0 z-[120] flex items-start justify-center bg-slate-950/40 p-6 backdrop-blur-sm">
-          <div className="w-full max-w-[560px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_40px_120px_rgba(15,23,42,0.35)]">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <div className="fixed inset-0 z-[120] flex items-start justify-center bg-slate-950/70 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-[560px] overflow-hidden rounded-[28px] border border-white/10 bg-slate-900 shadow-[0_40px_120px_rgba(2,6,23,0.65)]">
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">Select Type</p>
-                <h3 className="text-xl font-semibold text-slate-900">
+                <p className="text-[11px] uppercase tracking-[0.4em] text-white/40">Select Type</p>
+                <h3 className="text-xl font-semibold text-white">
                   {typeModalMode === "add"
                     ? "เพิ่มประเภท"
                     : typeModalMode === "edit"
@@ -475,7 +475,7 @@ export const MasterSection = () => {
               <button
                 type="button"
                 onClick={() => setTypeModalOpen(false)}
-                className="rounded-full border border-teal-200 bg-teal-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
+                className="rounded-full border border-teal-400/30 bg-teal-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-200 hover:border-teal-300 hover:bg-teal-500/20"
               >
                 ปิด
               </button>
@@ -483,37 +483,37 @@ export const MasterSection = () => {
 
             <div className="space-y-4 p-6">
               {typeModalMode === "delete" ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 text-sm text-rose-700">
+                <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
                   ต้องการลบประเภท <span className="font-semibold">{activeType?.code}</span> ใช่หรือไม่?
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.2em] text-white/45">
                     Code
                     <input
                       type="text"
                       value={typeForm.code}
                       onChange={(event) => setTypeForm((prev) => ({ ...prev, code: event.target.value }))}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white/90 outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
                     />
                   </label>
-                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.2em] text-white/45">
                     Description
                     <input
                       type="text"
                       value={typeForm.desc}
                       onChange={(event) => setTypeForm((prev) => ({ ...prev, desc: event.target.value }))}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white/90 outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
                     />
                   </label>
-                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.2em] text-white/45">
                     Status
                     <select
                       value={typeForm.isActive ? "active" : "inactive"}
                       onChange={(event) =>
                         setTypeForm((prev) => ({ ...prev, isActive: event.target.value === "active" }))
                       }
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white/90 outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
                     >
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
@@ -523,11 +523,11 @@ export const MasterSection = () => {
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+            <div className="flex items-center justify-end gap-3 border-t border-white/10 bg-slate-950/60 px-6 py-4">
               <button
                 type="button"
                 onClick={() => setTypeModalOpen(false)}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-600 hover:border-slate-300"
+                className="rounded-full border border-white/10 bg-slate-900/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60 hover:border-white/20"
               >
                 ยกเลิก
               </button>
@@ -546,12 +546,12 @@ export const MasterSection = () => {
       )}
 
       {valueModalOpen && (
-        <div className="fixed inset-0 z-[120] flex items-start justify-center bg-slate-950/40 p-6 backdrop-blur-sm">
-          <div className="w-full max-w-[560px] overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_40px_120px_rgba(15,23,42,0.35)]">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <div className="fixed inset-0 z-[120] flex items-start justify-center bg-slate-950/70 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-[560px] overflow-hidden rounded-[28px] border border-white/10 bg-slate-900 shadow-[0_40px_120px_rgba(2,6,23,0.65)]">
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">Select Value</p>
-                <h3 className="text-xl font-semibold text-slate-900">
+                <p className="text-[11px] uppercase tracking-[0.4em] text-white/40">Select Value</p>
+                <h3 className="text-xl font-semibold text-white">
                   {valueModalMode === "add"
                     ? "เพิ่มรายการ"
                     : valueModalMode === "edit"
@@ -562,7 +562,7 @@ export const MasterSection = () => {
               <button
                 type="button"
                 onClick={() => setValueModalOpen(false)}
-                className="rounded-full border border-teal-200 bg-teal-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
+                className="rounded-full border border-teal-400/30 bg-teal-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-200 hover:border-teal-300 hover:bg-teal-500/20"
               >
                 ปิด
               </button>
@@ -570,37 +570,37 @@ export const MasterSection = () => {
 
             <div className="space-y-4 p-6">
               {valueModalMode === "delete" ? (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50/60 p-4 text-sm text-rose-700">
+                <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-4 text-sm text-rose-200">
                   ต้องการลบรายการ <span className="font-semibold">{activeValue?.code}</span> ใช่หรือไม่?
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.2em] text-white/45">
                     Code
                     <input
                       type="text"
                       value={valueForm.code}
                       onChange={(event) => setValueForm((prev) => ({ ...prev, code: event.target.value }))}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white/90 outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
                     />
                   </label>
-                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.2em] text-white/45">
                     Description
                     <input
                       type="text"
                       value={valueForm.desc}
                       onChange={(event) => setValueForm((prev) => ({ ...prev, desc: event.target.value }))}
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white/90 outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
                     />
                   </label>
-                  <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+                  <label className="text-xs uppercase tracking-[0.2em] text-white/45">
                     Status
                     <select
                       value={valueForm.isActive ? "active" : "inactive"}
                       onChange={(event) =>
                         setValueForm((prev) => ({ ...prev, isActive: event.target.value === "active" }))
                       }
-                      className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white/90 outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
                     >
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
@@ -610,11 +610,11 @@ export const MasterSection = () => {
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-6 py-4">
+            <div className="flex items-center justify-end gap-3 border-t border-white/10 bg-slate-950/60 px-6 py-4">
               <button
                 type="button"
                 onClick={() => setValueModalOpen(false)}
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-600 hover:border-slate-300"
+                className="rounded-full border border-white/10 bg-slate-900/70 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/60 hover:border-white/20"
               >
                 ยกเลิก
               </button>

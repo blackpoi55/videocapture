@@ -63,18 +63,18 @@ export default function Page() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#f8fafc] text-slate-900">
+    <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
       <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_12%_-10%,rgba(20,184,166,0.18),transparent),radial-gradient(1000px_520px_at_90%_0%,rgba(251,191,36,0.18),transparent),radial-gradient(700px_420px_at_50%_100%,rgba(56,189,248,0.12),transparent)]" />
-        <div className="absolute -left-32 -top-28 h-[360px] w-[360px] rounded-full bg-teal-200/70 blur-[120px]" />
-        <div className="absolute right-[-80px] top-[180px] h-[280px] w-[280px] rounded-full bg-amber-200/60 blur-[120px]" />
-        <div className="absolute bottom-[-160px] left-[20%] h-[420px] w-[420px] rounded-full bg-sky-200/45 blur-[140px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,_rgba(15,23,42,0.05)_1px,_transparent_0)] [background-size:22px_22px] opacity-35" />
+        <div className="absolute inset-0 bg-[radial-gradient(1200px_600px_at_12%_-10%,rgba(20,184,166,0.18),transparent),radial-gradient(1000px_520px_at_90%_0%,rgba(99,102,241,0.18),transparent),radial-gradient(700px_420px_at_50%_100%,rgba(56,189,248,0.16),transparent)]" />
+        <div className="absolute -left-32 -top-28 h-[360px] w-[360px] rounded-full bg-emerald-500/20 blur-[160px]" />
+        <div className="absolute right-[-80px] top-[180px] h-[280px] w-[280px] rounded-full bg-indigo-500/20 blur-[150px]" />
+        <div className="absolute bottom-[-160px] left-[20%] h-[420px] w-[420px] rounded-full bg-sky-500/15 blur-[170px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,_rgba(226,232,240,0.06)_1px,_transparent_0)] [background-size:22px_22px] opacity-30" />
       </div>
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-[420px] items-center px-6 py-12">
-        <div className="relative w-full rounded-[28px] border border-white/70 bg-white/80 p-8 shadow-[0_30px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl">
-          <div className="absolute inset-0 rounded-[28px] bg-gradient-to-br from-white/70 via-white/20 to-transparent" />
+        <div className="relative w-full rounded-[28px] border border-white/10 bg-slate-900/70 p-8 shadow-[0_30px_80px_rgba(2,6,23,0.6)] backdrop-blur-xl">
+          <div className="absolute inset-0 rounded-[28px] bg-gradient-to-br from-white/10 via-white/5 to-transparent" />
           <div className="relative">
             <div className="mb-8 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -82,17 +82,17 @@ export default function Page() {
                   IV
                 </div>
                 <div>
-                  <p className="text-xs uppercase tracking-[0.32em] text-slate-500">Intraview</p>
-                  <h1 className="text-xl font-semibold">เข้าสู่ระบบ</h1>
+                  <p className="text-xs uppercase tracking-[0.32em] text-white/50">Intraview</p>
+                  <h1 className="text-xl font-semibold text-white">เข้าสู่ระบบ</h1>
                 </div>
               </div>
-              <span className="rounded-full border border-slate-200/70 bg-white px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-slate-500">
+              <span className="rounded-full border border-white/10 bg-slate-900/70 px-3 py-1 text-[10px] uppercase tracking-[0.3em] text-white/50">
                 Secure
               </span>
             </div>
 
             <form className="space-y-5" onSubmit={handleSubmit}>
-              <label className="block text-[11px] uppercase tracking-[0.22em] text-slate-500">
+              <label className="block text-[11px] uppercase tracking-[0.22em] text-white/50">
                 อีเมล / รหัสพนักงาน
                 <input
                   type="text"
@@ -101,11 +101,11 @@ export default function Page() {
                   placeholder="name@clinic.com"
                   value={username}
                   onChange={(event) => setusername(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-900 shadow-[0_12px_30px_rgba(15,23,42,0.06)] outline-none transition focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white/90 shadow-[0_12px_30px_rgba(2,6,23,0.4)] outline-none transition focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
                 />
               </label>
 
-              <label className="block text-[11px] uppercase tracking-[0.22em] text-slate-500">
+              <label className="block text-[11px] uppercase tracking-[0.22em] text-white/50">
                 รหัสผ่าน
                 <input
                   type="password"
@@ -114,22 +114,22 @@ export default function Page() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-sm text-slate-900 shadow-[0_12px_30px_rgba(15,23,42,0.06)] outline-none transition focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                  className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white/90 shadow-[0_12px_30px_rgba(2,6,23,0.4)] outline-none transition focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
                 />
               </label>
 
-              <div className="flex items-center justify-between text-xs text-slate-500">
+              <div className="flex items-center justify-between text-xs text-white/50">
                 <label className="flex items-center gap-2">
-                  <input type="checkbox" className="h-4 w-4 rounded border-slate-300 accent-teal-500" />
+                  <input type="checkbox" className="h-4 w-4 rounded border-white/20 accent-teal-500" />
                   จำฉันไว้
                 </label>
-                <button type="button" className="text-teal-600 hover:text-teal-500">
+                <button type="button" className="text-teal-200 hover:text-teal-100">
                   ลืมรหัสผ่าน?
                 </button>
               </div>
 
               {errorMessage && (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-600">
+                <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 px-4 py-3 text-xs text-rose-200">
                   {errorMessage}
                 </div>
               )}
@@ -144,9 +144,9 @@ export default function Page() {
               </button>
             </form>
 
-            <div className="mt-6 text-center text-xs text-slate-500">
+            <div className="mt-6 text-center text-xs text-white/50">
               ต้องการสิทธิ์ใช้งาน?{" "}
-              <Link href="/" className="text-teal-600 hover:text-teal-500">
+              <Link href="/" className="text-teal-200 hover:text-teal-100">
                 ติดต่อผู้ดูแล
               </Link>
             </div>

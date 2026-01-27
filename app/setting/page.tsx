@@ -19,28 +19,28 @@ export default function SettingPage() {
   const [active, setActive] = useState<SectionId>("master");
 
   return (
-    <main className="relative min-h-screen bg-[#f4f7fb] text-slate-900">
+    <main className="relative min-h-screen bg-slate-950 text-white">
       <div className="absolute inset-0 overflow-hidden">
-        <div className="absolute -left-24 -top-24 h-[380px] w-[380px] rounded-full bg-teal-200/45 blur-[130px]" />
-        <div className="absolute right-[-120px] top-[120px] h-[320px] w-[320px] rounded-full bg-amber-200/40 blur-[120px]" />
-        <div className="absolute bottom-[-180px] left-[30%] h-[420px] w-[420px] rounded-full bg-sky-200/35 blur-[150px]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,_rgba(15,23,42,0.06)_1px,_transparent_0)] [background-size:22px_22px] opacity-40" />
+        <div className="absolute -left-24 -top-24 h-[380px] w-[380px] rounded-full bg-emerald-500/15 blur-[150px]" />
+        <div className="absolute right-[-120px] top-[120px] h-[320px] w-[320px] rounded-full bg-indigo-500/18 blur-[140px]" />
+        <div className="absolute bottom-[-180px] left-[30%] h-[420px] w-[420px] rounded-full bg-teal-500/12 blur-[170px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,_rgba(226,232,240,0.06)_1px,_transparent_0)] [background-size:22px_22px] opacity-30" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-full px-6 py-10">
         <header className="flex flex-col gap-3">
-          <p className="text-xs uppercase tracking-[0.32em] text-slate-500">Intraview · Settings</p>
+          <p className="text-xs uppercase tracking-[0.32em] text-white/50">Intraview · Settings</p>
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-semibold">ตั้งค่า</h1>
-              <p className="text-sm text-slate-500">จัดการค่าพื้นฐาน ระบบ และพรีเซ็ตเริ่มต้น</p>
+              <h1 className="text-3xl font-semibold text-white">ตั้งค่า</h1>
+              <p className="text-sm text-white/50">จัดการค่าพื้นฐาน ระบบ และพรีเซ็ตเริ่มต้น</p>
             </div>
              
           </div>
         </header>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-[260px_1fr]">
-          <aside className="rounded-[22px] border border-white/60 bg-white/70 p-4 shadow-[0_24px_60px_rgba(15,23,42,0.08)] backdrop-blur-xl">
+          <aside className="rounded-[22px] border border-white/10 bg-slate-900/70 p-4 shadow-[0_24px_60px_rgba(2,6,23,0.55)] backdrop-blur-xl">
             <div className="space-y-2">
               {sections.map((item) => {
                 const isActive = active === item.id;
@@ -50,20 +50,20 @@ export default function SettingPage() {
                     type="button"
                     onClick={() => setActive(item.id)}
                     className={`w-full rounded-2xl border px-4 py-3 text-left transition cursor-pointer ${isActive
-                      ? "border-teal-400/50 bg-white text-slate-900 shadow-[0_14px_30px_rgba(20,184,166,0.18)]"
-                      : "border-transparent bg-transparent text-slate-600 hover:border-white hover:bg-white/70"
+                      ? "border-teal-400/50 bg-slate-900 text-white shadow-[0_14px_30px_rgba(20,184,166,0.2)]"
+                      : "border-transparent bg-transparent text-white/60 hover:border-white/10 hover:bg-white/5"
                       }`}
                     aria-pressed={isActive}
                   >
                     <div className="text-sm font-semibold">{item.title}</div>
-                    <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">{item.subtitle}</div>
+                    <div className="text-[11px] uppercase tracking-[0.2em] text-white/45">{item.subtitle}</div>
                   </button>
                 );
               })}
             </div> 
           </aside>
 
-          <section className="rounded-[28px] border border-white/70 bg-white/85 p-6 shadow-[0_28px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl">
+          <section className="rounded-[28px] border border-white/10 bg-slate-900/70 p-6 shadow-[0_28px_80px_rgba(2,6,23,0.6)] backdrop-blur-xl">
             <div className={active === "master" ? "block" : "hidden"}>
               <MasterSection />
             </div>
