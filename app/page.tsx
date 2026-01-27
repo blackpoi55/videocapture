@@ -438,7 +438,11 @@ function PageContent() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [preview, setPreview] = useState<FileItem | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [pickerRefreshTick, setPickerRefreshTick] = useState(0);
+  const [pickerRefreshSignal, setPickerRefreshSignal] = useState<{
+    tick: number;
+    mode: "single" | "all";
+    fileName?: string;
+  } | null>(null);
   const [videoCountdown, setVideoCountdown] = useState<number | null>(null);
 
   // Camera
@@ -886,6 +890,71 @@ function PageContent() {
     return { sx, sy, sw, sh };
   }, []);
 
+  const drawContain = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      source: HTMLVideoElement | HTMLImageElement,
+      sx: number,
+      sy: number,
+      sw: number,
+      sh: number,
+      targetW: number,
+      targetH: number
+    ) => {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, targetW, targetH);
+      const scale = Math.min(targetW / sw, targetH / sh);
+      const dw = Math.max(1, Math.floor(sw * scale));
+      const dh = Math.max(1, Math.floor(sh * scale));
+      const dx = Math.floor((targetW - dw) / 2);
+      const dy = Math.floor((targetH - dh) / 2);
+      ctx.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh);
+    },
+    []
+  );
+
+  const drawPreviewMatch = useCallback(
+    (
+      ctx: CanvasRenderingContext2D,
+      source: HTMLVideoElement | HTMLImageElement,
+      targetW: number,
+      targetH: number
+    ) => {
+      const srcW = source instanceof HTMLVideoElement ? source.videoWidth || 0 : source.naturalWidth || 0;
+      const srcH = source instanceof HTMLVideoElement ? source.videoHeight || 0 : source.naturalHeight || 0;
+      if (!srcW || !srcH) return;
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, targetW, targetH);
+
+      const containScale = Math.min(targetW / srcW, targetH / srcH);
+      const baseW = Math.max(1, Math.floor(srcW * containScale));
+      const baseH = Math.max(1, Math.floor(srcH * containScale));
+      const baseX = Math.floor((targetW - baseW) / 2);
+      const baseY = Math.floor((targetH - baseH) / 2);
+
+      const c = camCropRef.current;
+      const clamp = (v: number) => Math.max(0, Math.min(60, v));
+      const l = clamp(c.left) / 100;
+      const r = clamp(c.right) / 100;
+      const t = clamp(c.top) / 100;
+      const b = clamp(c.bottom) / 100;
+      const wFactor = Math.max(0.05, 1 - l - r);
+      const hFactor = Math.max(0.05, 1 - t - b);
+      const sx = 1 / wFactor;
+      const sy = 1 / hFactor;
+      const tx = -l * sx;
+      const ty = -t * sy;
+
+      const drawW = Math.max(1, Math.floor(baseW * sx));
+      const drawH = Math.max(1, Math.floor(baseH * sy));
+      const drawX = Math.floor(baseX + tx * baseW);
+      const drawY = Math.floor(baseY + ty * baseH);
+
+      ctx.drawImage(source, 0, 0, srcW, srcH, drawX, drawY, drawW, drawH);
+    },
+    []
+  );
+
   const stopRenderLoop = useCallback(() => {
     if (renderLoopRef.current) cancelAnimationFrame(renderLoopRef.current);
     renderLoopRef.current = null;
@@ -904,20 +973,16 @@ function PageContent() {
         return;
       }
       const vid = videoRef.current;
-      const srcW = vid.videoWidth || 1280;
-      const srcH = vid.videoHeight || 720;
       const targetW = 3840;
       const targetH = 2160;
       renderCanvasRef.current.width = targetW;
       renderCanvasRef.current.height = targetH;
 
       const ctx = renderCtxRef.current;
-      ctx.clearRect(0, 0, targetW, targetH);
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       ctx.filter = camFilterRef.current;
-      const { sx, sy, sw, sh } = getCropPixels(srcW, srcH);
-      ctx.drawImage(vid, sx, sy, sw, sh, 0, 0, targetW, targetH);
+      drawPreviewMatch(ctx, vid, targetW, targetH);
       ctx.filter = "none";
 
       renderLoopRef.current = requestAnimationFrame(draw);
@@ -925,7 +990,7 @@ function PageContent() {
 
     stopRenderLoop();
     renderLoopRef.current = requestAnimationFrame(draw);
-  }, [getCropPixels, stopRenderLoop]);
+  }, [stopRenderLoop]);
 
   const CameraAdjustControls = ({ onClose }: { onClose: () => void }) => {
     const presetValue = cameraPresetMode === "edit" ? "edit" : cameraPresetId;
@@ -1627,7 +1692,9 @@ function PageContent() {
       stopStream();
       const deviceId = deviceSelected?.value;
       const s = await navigator.mediaDevices.getUserMedia({
-        video: deviceId ? { deviceId: { exact: deviceId } } : true,
+        video: deviceId
+          ? { deviceId: { exact: deviceId }, width: { ideal: 3840 }, height: { ideal: 2160 } }
+          : { width: { ideal: 3840 }, height: { ideal: 2160 } },
         audio: true,
       });
       streamRef.current = s;
@@ -1651,8 +1718,6 @@ function PageContent() {
     try {
       const v = videoRef.current;
       const c = document.createElement("canvas");
-      const srcW = v.videoWidth || 1280;
-      const srcH = v.videoHeight || 720;
       const targetW = 3840;
       const targetH = 2160;
       c.width = targetW;
@@ -1661,8 +1726,7 @@ function PageContent() {
       ctx.imageSmoothingEnabled = true;
       ctx.imageSmoothingQuality = "high";
       ctx.filter = camFilterRef.current;
-      const { sx, sy, sw, sh } = getCropPixels(srcW, srcH);
-      ctx.drawImage(v, sx, sy, sw, sh, 0, 0, targetW, targetH);
+      drawPreviewMatch(ctx, v, targetW, targetH);
       ctx.filter = "none";
 
       const blob = await new Promise<Blob>((resolve) => c.toBlob((b) => resolve(b!), "image/png"));
@@ -1995,7 +2059,7 @@ function PageContent() {
         className="col-span-12 lg:col-span-6 min-h-0"
       >
         <div className="flex flex-col h-full min-h-0">
-          <div className="relative rounded-3xl border border-white/10 bg-black/40 overflow-hidden flex-1 min-h-0">
+          <div className="relative w-full aspect-video rounded-3xl border border-white/10 bg-black/40 overflow-hidden">
             <video
               ref={videoRef}
               onClick={savePhoto}
@@ -2052,13 +2116,13 @@ function PageContent() {
         <div className="h-full min-h-0 flex flex-col">
           <div className="text-sm text-white/80 mb-2 truncate">{preview?.name || "ยังไม่มีพรีวิว (ถ่ายรูป/อัดวิดีโอแล้วจะขึ้นอัตโนมัติ)"}</div>
 
-          <div className="rounded-3xl border border-white/10 bg-black/40 overflow-hidden flex-1 min-h-0 flex items-center justify-center">
+          <div className="rounded-3xl border border-white/10 bg-black/40 overflow-hidden w-full aspect-video flex items-center justify-center">
             {!preview || !previewUrl ? (
               <div className="text-sm text-white/45">No Preview</div>
             ) : isImageType(preview.type, preview.name) ? (
-              <img src={previewUrl} alt={preview.name} className="max-h-full max-w-full object-contain" />
+              <img src={previewUrl} alt={preview.name} className="h-full w-full object-contain" />
             ) : isVideoType(preview.type, preview.name) ? (
-              <video src={previewUrl} controls className="max-h-full max-w-full object-contain" />
+              <video src={previewUrl} controls className="h-full w-full object-contain" />
             ) : (
               <div className="text-sm text-white/45">ไม่รองรับ preview</div>
             )}
@@ -2533,7 +2597,7 @@ function PageContent() {
             setEditorOpen(true);
           }}
           onExportReport={exportReport}
-          refreshSignal={pickerRefreshTick}
+          refreshSignal={pickerRefreshSignal ?? undefined}
           templateSrc={caseDetail?.operativetemplateimagepath || null}
           caseNumber={caseIdParam || ""}
           initialPictures={(caseDetail?.pictures as Array<Record<string, unknown>>) || null}
@@ -2548,8 +2612,12 @@ function PageContent() {
           onClose={() => setEditorOpen(false)}
           file={editorFile}
           chooseDir={chooseDir}
-          onSaved={async () => {
-            setPickerRefreshTick((v) => v + 1);
+          onSaved={async (info) => {
+            setPickerRefreshSignal((prev) => ({
+              tick: (prev?.tick ?? 0) + 1,
+              mode: info.mode,
+              fileName: info.fileName,
+            }));
           }}
         />
       </main>

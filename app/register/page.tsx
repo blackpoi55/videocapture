@@ -196,20 +196,20 @@ const calculateAgeFromDob = (dobDay: string, dobMonth: string, dobYear: string) 
   return String(age);
 };
 
-const labelClass = "text-[12px] uppercase tracking-[0.18em] text-slate-500/70";
+const labelClass = "text-[12px] uppercase tracking-[0.18em] text-white/50";
 const fieldClass =
-  "rounded-2xl border border-slate-300/60 bg-slate-50/90 px-3.5 py-3 text-sm text-slate-900 outline-none transition focus:border-teal-500/70 focus:ring-2 focus:ring-teal-400/20";
+  "rounded-2xl border border-white/10 bg-slate-900/70 px-3.5 py-3 text-sm text-white/90 outline-none transition focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20";
 const statusBaseClass =
-  "rounded-full border bg-white/90 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.12em]";
+  "rounded-full border bg-slate-900/70 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.12em]";
 const statusTone: Record<HnStatus, string> = {
-  idle: "border-slate-300/60 text-slate-500",
-  loading: "border-blue-500/60 text-blue-600",
-  found: "border-emerald-500/70 text-emerald-600",
-  notfound: "border-rose-400/70 text-rose-500",
+  idle: "border-white/10 text-white/60",
+  loading: "border-blue-400/50 text-blue-200",
+  found: "border-emerald-400/60 text-emerald-200",
+  notfound: "border-rose-400/60 text-rose-200",
 };
 const actionBaseClass =
   "rounded-full px-5 py-3 text-[13px] font-semibold uppercase tracking-[0.16em] transition";
-const ghostButtonClass = `${actionBaseClass} border border-teal-400/40 bg-teal-500/10 text-teal-700 hover:bg-teal-500/20`;
+const ghostButtonClass = `${actionBaseClass} border border-teal-400/40 bg-teal-500/10 text-teal-200 hover:bg-teal-500/20`;
 const primaryButtonClass = `${actionBaseClass} bg-teal-500 text-white hover:bg-teal-600`;
 
 function formatDay(n: number) {
@@ -436,16 +436,16 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,_#fef9ef_0%,_#f7fbff_45%,_#eef6ff_100%)] text-slate-900">
+    <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-[120px] -left-[60px] h-[420px] w-[420px] rounded-full bg-[rgba(56,189,248,0.45)] blur-[140px] opacity-75" />
-        <div className="absolute -bottom-[140px] -right-[40px] h-[420px] w-[420px] rounded-full bg-[rgba(16,185,129,0.35)] blur-[140px] opacity-75" />
+        <div className="absolute -top-[120px] -left-[60px] h-[420px] w-[420px] rounded-full bg-emerald-500/15 blur-[160px] opacity-80" />
+        <div className="absolute -bottom-[140px] -right-[40px] h-[420px] w-[420px] rounded-full bg-indigo-500/20 blur-[160px] opacity-80" />
       </div>
 
       <div className="relative z-10 mx-auto w-full max-w-full px-6 py-8 pb-16">
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div> 
-            <h1 className="mt-2 text-[32px] font-semibold">ลงทะเบียนผู้ป่วย</h1> 
+            <h1 className="mt-2 text-[32px] font-semibold text-white">ลงทะเบียนผู้ป่วย</h1> 
           </div>
           <div className={`${statusBaseClass} ${statusTone[hnStatus]}`}>
             {hnStatus === "found" && "พบข้อมูลเดิม"}
@@ -455,7 +455,7 @@ export default function RegisterPage() {
           </div>
         </header>
 
-        <section className="rounded-[28px] border border-slate-300/40 bg-white/95 p-7 backdrop-blur-[24px] shadow-[0_30px_80px_rgba(148,163,184,0.35)]">
+        <section className="rounded-[28px] border border-white/10 bg-slate-900/70 p-7 backdrop-blur-[24px] shadow-[0_30px_80px_rgba(2,6,23,0.6)]">
           <div className="grid grid-cols-1 gap-[18px] md:grid-cols-2 lg:grid-cols-4">
             <div className="col-span-1 flex flex-col gap-2 md:col-span-2 lg:col-span-4">
               <label className={labelClass}>
@@ -476,7 +476,7 @@ export default function RegisterPage() {
                 placeholder="เช่น 1-65"
                 className={fieldClass}
               />
-              <span className="text-xs text-slate-500/70">กด Enter เพื่อค้นหา</span>
+              <span className="text-xs text-white/50">กด Enter เพื่อค้นหา</span>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -612,11 +612,11 @@ export default function RegisterPage() {
               <div className="flex flex-wrap gap-4">
                 {optionsLoading && <span className="text-xs text-slate-500/70">กำลังโหลด...</span>}
                 {!optionsLoading && patientTypeOptions.length === 0 && (
-                  <span className="text-xs text-slate-500/70">ไม่พบข้อมูล</span>
+                  <span className="text-xs text-white/50">ไม่พบข้อมูล</span>
                 )}
                 {!optionsLoading &&
                   patientTypeOptions.map((opt) => (
-                    <label key={opt.id} className="flex items-center gap-2 text-[13px] text-slate-800/80">
+                    <label key={opt.id} className="flex items-center gap-2 text-[13px] text-white/80">
                       <input
                         type="checkbox"
                         checked={patientTypeToList(form.patienttype).includes(opt.id)}

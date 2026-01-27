@@ -456,15 +456,15 @@ export const CameraSection = ({ active }: { active: boolean }) => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold">Camera Preset</h2>
-        <p className="text-sm text-slate-500">ค่าเริ่มต้นเมื่อเปิดกล้องเพื่อถ่ายภาพ</p>
-        {presetLoading && <p className="mt-2 text-xs text-slate-400">Loading presets...</p>}
-        {presetError && <p className="mt-2 text-xs text-rose-500">{presetError}</p>}
+        <h2 className="text-lg font-semibold text-white">Camera Preset</h2>
+        <p className="text-sm text-white/50">ค่าเริ่มต้นเมื่อเปิดกล้องเพื่อถ่ายภาพ</p>
+        {presetLoading && <p className="mt-2 text-xs text-white/40">Loading presets...</p>}
+        {presetError && <p className="mt-2 text-xs text-rose-300">{presetError}</p>}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
-        <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
-          <div className="flex items-center justify-between text-xs uppercase tracking-[0.26em] text-slate-400">
+        <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-900/70 p-4">
+          <div className="flex items-center justify-between text-xs uppercase tracking-[0.26em] text-white/40">
             <span>Presets</span>
             <span>{cameraPresets.length}</span>
           </div>
@@ -475,8 +475,8 @@ export const CameraSection = ({ active }: { active: boolean }) => {
                 type="button"
                 onClick={() => setActivePresetId(preset.id)}
                 className={`w-full rounded-xl border px-3 py-2 text-left text-sm transition ${preset.id === activePresetId
-                  ? "border-teal-400/60 bg-white text-slate-900 shadow-[0_12px_24px_rgba(20,184,166,0.18)]"
-                  : "border-transparent bg-transparent text-slate-600 hover:border-white hover:bg-white/70"
+                  ? "border-teal-400/60 bg-slate-950 text-white shadow-[0_12px_24px_rgba(20,184,166,0.2)]"
+                  : "border-transparent bg-transparent text-white/60 hover:border-white/10 hover:bg-white/5"
                   }`}
               >
                 {preset.name}
@@ -501,19 +501,19 @@ export const CameraSection = ({ active }: { active: boolean }) => {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[420px_1fr] xl:grid-cols-[460px_1fr]">
-          <div className="space-y-3 rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4 lg:sticky lg:top-24 lg:self-start">
-            <div className="flex items-center justify-between text-xs uppercase tracking-[0.26em] text-slate-400">
+          <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-900/70 p-4 lg:sticky lg:top-24 lg:self-start">
+            <div className="flex items-center justify-between text-xs uppercase tracking-[0.26em] text-white/40">
               <span>Live Preview</span>
               <button
                 type="button"
                 onClick={() => (cameraOn ? stopCamera() : startCamera())}
-                className="rounded-full border border-teal-300/50 bg-teal-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-teal-700 hover:bg-teal-500/20"
+                className="rounded-full border border-teal-300/50 bg-teal-500/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.28em] text-teal-200 hover:bg-teal-500/20"
               >
                 {cameraOn ? "หยุดกล้อง" : "เปิดกล้อง"}
               </button>
             </div>
 
-            <label className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
+            <label className="text-[11px] uppercase tracking-[0.22em] text-white/45">
               เลือกกล้อง
               <select
                 value={deviceId}
@@ -522,7 +522,7 @@ export const CameraSection = ({ active }: { active: boolean }) => {
                   setDeviceId(nextId);
                   if (cameraOn) startCamera(nextId);
                 }}
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-xs text-white/80 outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
               >
                 {devices.length === 0 && <option value="">ไม่พบกล้อง</option>}
                 {devices.map((device, index) => (
@@ -533,25 +533,25 @@ export const CameraSection = ({ active }: { active: boolean }) => {
               </select>
             </label>
 
-            <div className="relative aspect-[16/10] overflow-hidden rounded-2xl border border-slate-200 bg-slate-900">
+            <div className="relative aspect-video overflow-hidden rounded-2xl border border-white/10 bg-slate-950">
               {!cameraOn && (
-                <div className="absolute inset-0 flex items-center justify-center text-xs uppercase tracking-[0.3em] text-slate-400">
+                <div className="absolute inset-0 flex items-center justify-center text-xs uppercase tracking-[0.3em] text-white/50">
                   Camera Off
                 </div>
               )}
               <video
                 ref={videoRef}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
                 style={{ transform: previewCropTransform, transformOrigin: "top left", filter: previewFilter }}
                 muted
                 playsInline
               />
             </div>
-            {cameraError && <div className="text-[11px] text-rose-500">{cameraError}</div>}
+            {cameraError && <div className="text-[11px] text-rose-300">{cameraError}</div>}
           </div>
 
           <div className="space-y-5">
-            <label className="text-xs uppercase tracking-[0.2em] text-slate-500">
+            <label className="text-xs uppercase tracking-[0.2em] text-white/45">
               ชื่อพรีเซ็ต
               <input
                 type="text"
@@ -562,7 +562,7 @@ export const CameraSection = ({ active }: { active: boolean }) => {
                     prev.map((preset) => (preset.id === activePresetId ? { ...preset, name } : preset))
                   );
                 }}
-                className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
+                className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-sm text-white/90 outline-none focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
               />
             </label>
 
@@ -577,10 +577,10 @@ export const CameraSection = ({ active }: { active: boolean }) => {
                 { id: "cropTop", label: "Crop T", min: 0, max: 40, suffix: "%" },
                 { id: "cropBottom", label: "Crop B", min: 0, max: 40, suffix: "%" },
               ].map((item) => (
-                <div key={item.id} className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-4">
+                <div key={item.id} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-semibold text-slate-700">{item.label}</span>
-                    <span className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                    <span className="font-semibold text-white/80">{item.label}</span>
+                    <span className="text-xs uppercase tracking-[0.2em] text-white/40">
                       {activePreset?.values[item.id as keyof CameraPresetValues]}
                       {item.suffix}
                     </span>
@@ -594,7 +594,7 @@ export const CameraSection = ({ active }: { active: boolean }) => {
                       onChange={(e) =>
                         updateActivePresetValue(item.id as keyof CameraPresetValues, Number(e.target.value))
                       }
-                      className="w-full accent-teal-500"
+                      className="w-full accent-teal-400"
                     />
                     <input
                       type="number"
@@ -607,7 +607,7 @@ export const CameraSection = ({ active }: { active: boolean }) => {
                         const clamped = Math.min(item.max, Math.max(item.min, raw));
                         updateActivePresetValue(item.id as keyof CameraPresetValues, clamped);
                       }}
-                      className="h-9 w-full rounded-xl border border-slate-200 bg-white px-2 text-right text-xs outline-none"
+                      className="h-9 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2 text-right text-xs text-white/80 outline-none"
                     />
                   </div>
                 </div>
@@ -619,14 +619,14 @@ export const CameraSection = ({ active }: { active: boolean }) => {
                 type="button"
                 onClick={handleSavePreset}
                 disabled={presetSaving || !activePreset}
-                className="rounded-full border border-teal-300/50 bg-teal-500/10 px-5 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-teal-700 hover:bg-teal-500/20"
+                className="rounded-full border border-teal-300/50 bg-teal-500/10 px-5 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-teal-200 hover:bg-teal-500/20"
               >
                 บันทึกพรีเซ็ต
               </button>
               <button
                 type="button"
                 onClick={handleDeletePreset}
-                className="rounded-full border border-slate-200 bg-white px-5 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-slate-600 hover:border-slate-300"
+                className="rounded-full border border-white/10 bg-slate-900/70 px-5 py-2 text-xs font-semibold uppercase tracking-[0.28em] text-white/60 hover:border-white/20"
                 disabled={presetSaving || cameraPresets.length <= 1}
               >
                 ลบพรีเซ็ต

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import Nav from "@/components/Nav";
+import AuthGuard from "@/components/AuthGuard";
 import "./globals.css";
 
 const geistMono = Geist_Mono({
@@ -39,6 +40,7 @@ export default function RootLayout({
       <body
         className={`${reportBodyFont.className} ${reportBodyFont.variable} ${geistMono.variable} antialiased`}
       >
+        <AuthGuard />
         <Nav />
         {children}
         <div id="react-datepicker-portal" />

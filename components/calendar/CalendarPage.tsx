@@ -624,10 +624,10 @@ const toCalendarEvent = (item: CaseItem): BigCalendarEvent => {
 };
 
 const statusColors: Record<CaseItem["status"], { bg: string; accent: string; bgStrong: string }> = {
-  Confirmed: { bg: "rgba(16, 185, 129, 0.08)", accent: "#34d399", bgStrong: "rgba(16, 185, 129, 0.18)" },
-  Monitoring: { bg: "rgba(14, 165, 233, 0.09)", accent: "#38bdf8", bgStrong: "rgba(14, 165, 233, 0.18)" },
-  Ready: { bg: "rgba(251, 191, 36, 0.1)", accent: "#fbbf24", bgStrong: "rgba(251, 191, 36, 0.2)" },
-  Review: { bg: "rgba(244, 114, 182, 0.09)", accent: "#f9a8d4", bgStrong: "rgba(244, 114, 182, 0.18)" },
+  Confirmed: { bg: "rgba(16, 185, 129, 0.16)", accent: "#34d399", bgStrong: "rgba(16, 185, 129, 0.28)" },
+  Monitoring: { bg: "rgba(14, 165, 233, 0.16)", accent: "#38bdf8", bgStrong: "rgba(14, 165, 233, 0.28)" },
+  Ready: { bg: "rgba(251, 191, 36, 0.16)", accent: "#fbbf24", bgStrong: "rgba(251, 191, 36, 0.28)" },
+  Review: { bg: "rgba(244, 114, 182, 0.16)", accent: "#f9a8d4", bgStrong: "rgba(244, 114, 182, 0.28)" },
 };
 
 const formatThaiDisplay = (value: string) => {
@@ -685,8 +685,8 @@ export default function CalendarPage() {
   const autoFetchHnRef = useRef<string | null>(null);
   const fieldsDisabled = patientStatus !== "found";
   const fieldClass =
-    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:ring-2 focus:ring-sky-300 disabled:bg-slate-100 disabled:text-slate-400";
-  const labelClass = "text-[11px] uppercase tracking-[0.24em] text-slate-500";
+    "w-full rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2 text-sm text-white/90 outline-none transition focus:ring-2 focus:ring-teal-400/40 disabled:bg-slate-800 disabled:text-white/40";
+  const labelClass = "text-[11px] uppercase tracking-[0.24em] text-white/45";
   const viewLabel = useMemo(() => {
     if (view === Views.MONTH) {
       return format(calendarDate, "MMMM yyyy", { locale: th });
@@ -1275,7 +1275,7 @@ export default function CalendarPage() {
   const quickRangeClass = (active: boolean) =>
     `rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] transition ${active
       ? "border-teal-400 bg-teal-500 text-white shadow-[0_8px_18px_rgba(20,184,166,0.25)]"
-      : "border-slate-200 bg-white text-slate-600 hover:border-teal-300 hover:text-teal-700"
+      : "border-white/10 bg-slate-900/60 text-white/60 hover:border-teal-300 hover:text-teal-200"
     }`;
 
   const handleMove = (direction: -1 | 1) => {
@@ -1293,14 +1293,14 @@ export default function CalendarPage() {
     return {
       style: {
         backgroundColor: color.bg,
-        color: "#334155",
+        color: "#e2e8f0",
         borderRadius: "16px",
-        border: "1px solid rgba(148, 163, 184, 0.35)",
+        border: "1px solid rgba(148, 163, 184, 0.18)",
         padding: "6px 10px",
         fontWeight: 500,
         borderLeft: `3px solid ${color.accent}`,
         "--event-bg": color.bgStrong,
-        "--event-text": "#334155",
+        "--event-text": "#e2e8f0",
         "--event-accent": color.accent,
       } as CSSProperties,
     };
@@ -1317,12 +1317,12 @@ export default function CalendarPage() {
 
   const patientStatusClass =
     patientStatus === "found"
-      ? "border-emerald-200 bg-emerald-100 text-emerald-700"
+      ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-200"
       : patientStatus === "loading"
-        ? "border-sky-200 bg-sky-100 text-sky-700"
+        ? "border-sky-400/40 bg-sky-500/15 text-sky-200"
         : patientStatus === "notfound"
-          ? "border-rose-200 bg-rose-100 text-rose-700"
-          : "border-slate-200 bg-slate-100 text-slate-600";
+          ? "border-rose-400/40 bg-rose-500/15 text-rose-200"
+          : "border-white/10 bg-white/5 text-white/60";
 
   const handleScopeRedirect = () => {
     const params = new URLSearchParams();
@@ -1351,26 +1351,21 @@ export default function CalendarPage() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-white text-slate-900">
+    <main className="relative min-h-screen overflow-hidden bg-slate-950 text-white">
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-0 top-10 h-[320px] w-[320px] rounded-full bg-white/20 blur-[140px]" />
-        <div className="absolute right-10 top-40 h-[420px] w-[520px] rounded-full bg-pink-500/20 blur-[160px]" />
+        <div className="absolute left-0 top-10 h-[320px] w-[320px] rounded-full bg-emerald-500/10 blur-[160px]" />
+        <div className="absolute right-10 top-40 h-[420px] w-[520px] rounded-full bg-indigo-500/15 blur-[180px]" />
       </div>
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-full flex-col gap-6 px-6 py-10">
-        <header className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold text-black">Calenda</h1>
-          </div>
-
-        </header>
+  
 
         <div className="flex flex-1 gap-6">
           <section className="w-[30%] min-w-[320px]">
-            <div className="flex flex-col gap-4 rounded-[30px] border border-white/20 bg-white/80 px-6 py-6 shadow-[0_30px_80px_rgba(10,10,30,0.4)] backdrop-blur-3xl">
+            <div className="flex flex-col gap-4 rounded-[30px] border border-white/10 bg-slate-900/70 px-6 py-6 shadow-[0_30px_80px_rgba(2,6,23,0.55)] backdrop-blur-3xl">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.4em] text-slate-500">แดชบอร์ด</p>
+                  <p className="text-xs uppercase tracking-[0.4em] text-white/50">แดชบอร์ด</p>
                 </div>
                 <div className="flex gap-2 text-[11px] uppercase">
                   {["Calendar"].map((mode) => (
@@ -1379,7 +1374,7 @@ export default function CalendarPage() {
                       onClick={() => setTimelineMode(mode === "Calendar" ? "Calendar" : "Gantt")}
                       className={`rounded-full border px-3 py-1 transition ${timelineMode === (mode === "Calendar" ? "Calendar" : "Gantt")
                         ? "bg-teal-500 text-white border-teal-400/70"
-                        : "bg-teal-500/10 text-teal-700 border-teal-200 hover:bg-teal-500/20"
+                        : "bg-teal-500/10 text-teal-200 border-teal-400/30 hover:bg-teal-500/20"
                         }`}
                     >
                       {mode}
@@ -1388,12 +1383,12 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-pink-200/60 bg-gradient-to-br from-pink-100 to-white/60 p-4 text-sm text-slate-600 shadow-inner">
-                <p className="text-[11px] uppercase tracking-[0.3em] text-slate-500">ระยะเวลา</p>
-                <p className="text-base font-semibold text-slate-900">
+              <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900/80 to-slate-950/80 p-4 text-sm text-white/70 shadow-inner">
+                <p className="text-[11px] uppercase tracking-[0.3em] text-white/50">ระยะเวลา</p>
+                <p className="text-base font-semibold text-white">
                   {headerRangeLabel}
                 </p>
-                <p className="text-xs text-slate-500">รวม {rangeValid ? `${rangeDays} วัน` : "ยังไม่กำหนด"} · {eventsInRange.length} เคส</p>
+                <p className="text-xs text-white/50">รวม {rangeValid ? `${rangeDays} วัน` : "ยังไม่กำหนด"} · {eventsInRange.length} เคส</p>
 
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
@@ -1425,9 +1420,9 @@ export default function CalendarPage() {
                   </button>
                 </div>
                 <div className="mt-3 space-y-2">
-                  <label className="text-[11px] uppercase tracking-[0.3em] text-slate-500">Procedure Room</label>
+                  <label className="text-[11px] uppercase tracking-[0.3em] text-white/50">Procedure Room</label>
                   <select
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-2 py-2 text-sm text-slate-700 outline-none"
+                    className="w-full rounded-2xl border border-white/10 bg-slate-900/70 px-2 py-2 text-sm text-white/80 outline-none"
                     value={procedureRoomFilter}
                     onChange={(event) => setProcedureRoomFilter(event.target.value)}
                     disabled={procedureRoomLoading}
@@ -1442,19 +1437,19 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              <div className="space-y-3 text-sm text-slate-700">
+              <div className="space-y-3 text-sm text-white/70">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase tracking-[0.3em] text-slate-500">ช่วงวันที่</span>
-                  <span className="text-[11px] text-slate-500">ใช้สรุปช่วง</span>
+                  <span className="text-xs uppercase tracking-[0.3em] text-white/50">ช่วงวันที่</span>
+                  <span className="text-[11px] text-white/50">ใช้สรุปช่วง</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs text-slate-500">
+                <div className="grid grid-cols-2 gap-2 text-xs text-white/50">
                   <label className="flex flex-col gap-1">
                     <span>จาก</span>
                     <input
                       type="date"
                       value={rangeFrom}
                       onChange={(event) => setRangeFrom(event.target.value)}
-                      className="rounded-2xl border border-slate-200 px-2 py-1 text-sm outline-none"
+                      className="rounded-2xl border border-white/10 bg-slate-900/70 px-2 py-1 text-sm text-white outline-none"
                     />
                   </label>
                   <label className="flex flex-col gap-1">
@@ -1463,28 +1458,28 @@ export default function CalendarPage() {
                       type="date"
                       value={rangeTo}
                       onChange={(event) => setRangeTo(event.target.value)}
-                      className="rounded-2xl border border-slate-200 px-2 py-1 text-sm outline-none"
+                      className="rounded-2xl border border-white/10 bg-slate-900/70 px-2 py-1 text-sm text-white outline-none"
                     />
                   </label>
                 </div>
-                {!rangeValid && <p className="text-[11px] text-rose-500">ช่วงวันที่ไม่ถูกต้อง</p>}
-                <p className="text-[11px] text-slate-500">เลือกวันที่จากปฏิทินเพื่อดูรายการรายวัน</p>
+                {!rangeValid && <p className="text-[11px] text-rose-300">ช่วงวันที่ไม่ถูกต้อง</p>}
+                <p className="text-[11px] text-white/50">เลือกวันที่จากปฏิทินเพื่อดูรายการรายวัน</p>
               </div>
 
-              <div className="rounded-[24px] border border-slate-200 bg-white/80 p-3 text-[12px] text-slate-600 shadow-inner">
+              <div className="rounded-[24px] border border-white/10 bg-slate-900/70 p-3 text-[12px] text-white/70 shadow-inner">
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">เคสในช่วงวันที่</p>
-                  <span className="text-[11px] text-slate-500">{headerRangeLabel}</span>
+                  <p className="text-[11px] uppercase tracking-[0.4em] text-white/40">เคสในช่วงวันที่</p>
+                  <span className="text-[11px] text-white/50">{headerRangeLabel}</span>
                 </div>
                 {dashboardLoading && (
-                  <p className="mt-2 text-[11px] text-slate-400">กำลังโหลดข้อมูล...</p>
+                  <p className="mt-2 text-[11px] text-white/40">กำลังโหลดข้อมูล...</p>
                 )}
                 {!dashboardLoading && apiError && (
-                  <p className="mt-2 text-[11px] text-rose-500">{apiError}</p>
+                  <p className="mt-2 text-[11px] text-rose-300">{apiError}</p>
                 )}
                 <div className="mt-3 max-h-[320px] overflow-auto pr-1">
                   {eventsInRange.length === 0 && (
-                    <p className="text-[11px] text-slate-500">ยังไม่มีเคสในช่วงนี้</p>
+                    <p className="text-[11px] text-white/50">ยังไม่มีเคสในช่วงนี้</p>
                   )}
                   <div className="flex flex-col gap-2">
                     {eventsInRange.map((event) => (
@@ -1492,15 +1487,15 @@ export default function CalendarPage() {
                         key={event.id}
                         type="button"
                         onClick={() => handleSelectEvent(event)}
-                        className="rounded-2xl border border-teal-200 bg-teal-50 px-3 py-2 text-left text-[12px] text-teal-800 shadow-sm transition hover:border-teal-300 hover:bg-teal-100 hover:shadow-lg"
+                        className="rounded-2xl border border-teal-400/30 bg-teal-500/10 px-3 py-2 text-left text-[12px] text-teal-100 shadow-sm transition hover:border-teal-300 hover:bg-teal-500/20 hover:shadow-lg"
                       >
-                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                        <div className="flex items-center justify-between text-[11px] text-white/50">
                           <span>{formatThaiDisplay(isoFromDate(event.start))}</span>
                           <span>
                             {event.start.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })}
                           </span>
                         </div>
-                        <p className="mt-1 font-semibold text-slate-900">
+                        <p className="mt-1 font-semibold text-white">
                           {event.patient} ·{" "}
                           {getOptionLabel(procedureRoomOptions, event.meta?.procedure.room || event.camera) ||
                             event.meta?.procedure.room ||
@@ -1508,7 +1503,7 @@ export default function CalendarPage() {
                             "ไม่ระบุห้อง"}{" "}
 
                         </p>
-                        <p className="text-[11px] text-slate-500">
+                        <p className="text-[11px] text-white/50">
                           {getOptionLabel(physicianOptions, event.doctor)
                             ? ` ${getOptionLabel(physicianOptions, event.doctor)}`
                             : ""}
@@ -1517,25 +1512,25 @@ export default function CalendarPage() {
                     ))}
                   </div>
                 </div>
-                <p className="mt-2 text-[11px] text-slate-500">คลิกเคสเพื่อแก้ไขข้อมูล</p>
+                <p className="mt-2 text-[11px] text-white/50">คลิกเคสเพื่อแก้ไขข้อมูล</p>
               </div>
             </div>
           </section>
 
           <section className="w-[70%]">
-            <div className="relative rounded-[40px] border border-white/30 bg-white/80 p-6 shadow-[0_50px_120px_rgba(15,23,42,0.45)]">
+            <div className="relative rounded-[40px] border border-white/10 bg-slate-900/70 p-6 shadow-[0_50px_120px_rgba(2,6,23,0.6)]">
               <div className="absolute inset-0 overflow-hidden rounded-[40px]">
                 <div className="pointer-events-none absolute inset-0 opacity-60">
-                  <div className="absolute -left-20 -top-14 h-[260px] w-[260px] rounded-full bg-indigo-400/50 blur-[140px]" />
-                  <div className="absolute right-10 bottom-0 h-[200px] w-[200px] rounded-full bg-pink-400/30 blur-[160px]" />
+                  <div className="absolute -left-20 -top-14 h-[260px] w-[260px] rounded-full bg-indigo-500/20 blur-[160px]" />
+                  <div className="absolute right-10 bottom-0 h-[200px] w-[200px] rounded-full bg-emerald-500/15 blur-[160px]" />
                 </div>
               </div>
               <div className="relative z-10 flex flex-col gap-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Calendar</p>
-                    <h2 className="text-2xl font-semibold text-slate-900">Big Calenda</h2>
-                    <p className="text-2xl text-slate-500">
+                    <p className="text-xs uppercase tracking-[0.4em] text-white/50">Calendar</p>
+                    <h2 className="text-2xl font-semibold text-white">Big Calendar</h2>
+                    <p className="text-2xl text-white/50">
                       {viewLabelPrefix}
                       {viewLabel}
                     </p>
@@ -1543,19 +1538,19 @@ export default function CalendarPage() {
                   <div className="flex items-center gap-2 text-[11px]">
                     <button
                       onClick={() => setCalendarDate(today)}
-                      className="rounded-full border border-teal-200 px-3 py-1 text-teal-700 transition hover:border-teal-400 hover:bg-teal-50"
+                      className="rounded-full border border-teal-400/30 px-3 py-1 text-teal-200 transition hover:border-teal-300 hover:bg-teal-500/10"
                     >
                       Today
                     </button>
                     <button
                       onClick={() => handleMove(-1)}
-                      className="rounded-full border border-teal-200 px-3 py-1 text-teal-700 transition hover:border-teal-400 hover:bg-teal-50"
+                      className="rounded-full border border-teal-400/30 px-3 py-1 text-teal-200 transition hover:border-teal-300 hover:bg-teal-500/10"
                     >
                       Back
                     </button>
                     <button
                       onClick={() => handleMove(1)}
-                      className="rounded-full border border-teal-200 px-3 py-1 text-teal-700 transition hover:border-teal-400 hover:bg-teal-50"
+                      className="rounded-full border border-teal-400/30 px-3 py-1 text-teal-200 transition hover:border-teal-300 hover:bg-teal-500/10"
                     >
                       Next
                     </button>
@@ -1566,18 +1561,18 @@ export default function CalendarPage() {
                           onClick={() => setView(current)}
                           className={`rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.3em] transition ${view === current
                             ? "bg-teal-500 text-white border-teal-400/70"
-                            : "bg-teal-500/10 text-teal-700 border-teal-200 hover:bg-teal-500/20"
+                            : "bg-teal-500/10 text-teal-200 border-teal-400/30 hover:bg-teal-500/20"
                             }`}
                         >
                           {current}
                         </button>
                       ))}
                     </div>
-                    {monthLoading && <span className="text-[11px] text-slate-400">กำลังโหลด...</span>}
+                    {monthLoading && <span className="text-[11px] text-white/40">กำลังโหลด...</span>}
                   </div>
                 </div>
 
-                <div className="flex flex-1 flex-col rounded-[30px] border border-slate-200 bg-white/90 p-4 shadow-xl">
+                <div className="flex flex-1 flex-col rounded-[30px] border border-white/10 bg-slate-950/80 p-4 shadow-xl">
                   <Calendar
                     localizer={localizer}
                     events={filteredMonthEvents}
@@ -1618,20 +1613,20 @@ export default function CalendarPage() {
       </div>
 
       {modalOpen && (
-        <div className="fixed inset-0 z-[120] flex items-start justify-center bg-slate-950/50 p-6 backdrop-blur-sm">
-          <div className="w-full max-w-[1100px] overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_40px_120px_rgba(15,23,42,0.35)]">
-            <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <div className="fixed inset-0 z-[120] flex items-start justify-center bg-slate-950/70 p-6 backdrop-blur-sm">
+          <div className="w-full max-w-[1100px] overflow-hidden rounded-[32px] border border-white/10 bg-slate-900 shadow-[0_40px_120px_rgba(2,6,23,0.65)]">
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.4em] text-slate-400">
+                <p className="text-[11px] uppercase tracking-[0.4em] text-white/40">
                   {modalMode === "add" ? "Add Case" : "Edit Case"}
                 </p>
-                <h2 className="text-2xl font-semibold text-slate-900">Patient Information</h2>
+                <h2 className="text-2xl font-semibold text-white">Patient Information</h2>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleScopeRedirect}
-                  className="cursor-pointer rounded-full border border-blue-200 bg-blue-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-700 hover:border-blue-300 hover:bg-blue-500/20"
+                  className="cursor-pointer rounded-full border border-blue-400/30 bg-blue-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-200 hover:border-blue-300 hover:bg-blue-500/20"
                 >
                   ส่องกล้อง
                 </button>
@@ -1641,7 +1636,7 @@ export default function CalendarPage() {
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="rounded-full border border-teal-200 bg-teal-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
+                  className="rounded-full border border-teal-400/30 bg-teal-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-200 hover:border-teal-300 hover:bg-teal-500/20"
                 >
                   ปิด
                 </button>
@@ -1649,10 +1644,10 @@ export default function CalendarPage() {
             </div>
 
             <div className="max-h-[78vh] space-y-6 overflow-y-auto p-6">
-              <section className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <section className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-slate-700">ข้อมูลผู้ป่วย</h3>
-                  <span className="text-[11px] text-slate-500">กรอก HN แล้วระบบจะดึงข้อมูล</span>
+                  <h3 className="text-sm font-semibold text-white">ข้อมูลผู้ป่วย</h3>
+                  <span className="text-[11px] text-white/50">กรอก HN แล้วระบบจะดึงข้อมูล</span>
                 </div>
                 <div className="mt-4 grid grid-cols-12 gap-3">
                   <div className="col-span-12 lg:col-span-3">
@@ -1675,7 +1670,7 @@ export default function CalendarPage() {
                       <button
                         type="button"
                         onClick={() => handleHnBlur("")}
-                        className="rounded-full border border-teal-200 bg-teal-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
+                        className="rounded-full border border-teal-400/30 bg-teal-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-teal-200 hover:border-teal-300 hover:bg-teal-500/20"
                       >
                         ค้นหา
                       </button>
@@ -1729,7 +1724,7 @@ export default function CalendarPage() {
                     <textarea className={fieldClass} value={caseForm.patient?.note ?? ""} rows={2} readOnly disabled />
                   </div>
                   {patientStatus === "notfound" && (
-                    <div className="col-span-12 text-sm text-rose-500">
+                    <div className="col-span-12 text-sm text-rose-300">
                       ไม่พบข้อมูล HN นี้ กรุณาตรวจสอบอีกครั้ง
                     </div>
                   )}
@@ -1737,9 +1732,9 @@ export default function CalendarPage() {
               </section>
 
               <section
-                className={`rounded-2xl border border-slate-200 bg-white p-4 ${fieldsDisabled ? "opacity-60" : ""}`}
+                className={`rounded-2xl border border-white/10 bg-slate-950/60 p-4 ${fieldsDisabled ? "opacity-60" : ""}`}
               >
-                <h3 className="text-sm font-semibold text-slate-700">Registration</h3>
+                <h3 className="text-sm font-semibold text-white">Registration</h3>
                 <div className="mt-4 grid grid-cols-12 gap-3">
                   <div className="col-span-12 md:col-span-4">
                     <label className={labelClass}>Date</label>
@@ -1826,9 +1821,9 @@ export default function CalendarPage() {
               </section>
 
               <section
-                className={`rounded-2xl border border-slate-200 bg-white p-4 ${fieldsDisabled ? "opacity-60" : ""}`}
+                className={`rounded-2xl border border-white/10 bg-slate-950/60 p-4 ${fieldsDisabled ? "opacity-60" : ""}`}
               >
-                <h3 className="text-sm font-semibold text-slate-700">Procedure Room</h3>
+                <h3 className="text-sm font-semibold text-white">Procedure Room</h3>
                 <div className="mt-4 grid grid-cols-12 gap-3">
                   <div className="col-span-12 md:col-span-4">
                     <label className={labelClass}>Procedure</label>
@@ -2007,9 +2002,9 @@ export default function CalendarPage() {
               </section>
 
               <section
-                className={`rounded-2xl border border-slate-200 bg-white p-4 ${fieldsDisabled ? "opacity-60" : ""}`}
+                className={`rounded-2xl border border-white/10 bg-slate-950/60 p-4 ${fieldsDisabled ? "opacity-60" : ""}`}
               >
-                <h3 className="text-sm font-semibold text-slate-700">Physicians</h3>
+                <h3 className="text-sm font-semibold text-white">Physicians</h3>
                 <div className="mt-4 grid grid-cols-12 gap-3">
                   <div className="col-span-12 md:col-span-4">
                     <label className={labelClass}>Physician</label>
@@ -2151,9 +2146,9 @@ export default function CalendarPage() {
                 </div>
               </section>
               <section
-                className={`rounded-2xl border border-slate-200 bg-white p-4 ${fieldsDisabled ? "opacity-60" : ""}`}
+                className={`rounded-2xl border border-white/10 bg-slate-950/60 p-4 ${fieldsDisabled ? "opacity-60" : ""}`}
               >
-                <h3 className="text-sm font-semibold text-slate-700">Camera Preset</h3>
+                <h3 className="text-sm font-semibold text-white">Camera Preset</h3>
                 <div className="mt-4 grid grid-cols-12 gap-3">
                   <div className="col-span-12 md:col-span-4">
                     <label className={labelClass}>Camera Preset{caseForm.preset}</label>
@@ -2177,15 +2172,15 @@ export default function CalendarPage() {
               </section>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-6 py-4">
-              <div className="text-[11px] uppercase tracking-[0.3em] text-slate-400">
+            <div className="flex items-center justify-between border-t border-white/10 bg-slate-950/60 px-6 py-4">
+              <div className="text-[11px] uppercase tracking-[0.3em] text-white/40">
                 {fieldsDisabled ? "กรอก HN เพื่อปลดล็อคฟอร์ม" : "พร้อมบันทึกข้อมูล"}
               </div>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="rounded-full border border-teal-200 bg-teal-500/10 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.2em] text-teal-700 hover:border-teal-300 hover:bg-teal-500/20"
+                  className="rounded-full border border-teal-400/30 bg-teal-500/10 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.2em] text-teal-200 hover:border-teal-300 hover:bg-teal-500/20"
                 >
                   ยกเลิก
                 </button>
@@ -2203,28 +2198,76 @@ export default function CalendarPage() {
         </div>
       )}
       <style jsx global>{`
+        .rbc-calendar {
+          color: #e2e8f0;
+        }
+        .rbc-month-view,
+        .rbc-time-view,
+        .rbc-agenda-view {
+          background: #0b1220;
+          border-color: rgba(148, 163, 184, 0.18) !important;
+        }
+        .rbc-header,
+        .rbc-time-header-gutter,
+        .rbc-time-gutter,
+        .rbc-time-header-content {
+          color: #cbd5e1;
+          border-color: rgba(148, 163, 184, 0.18) !important;
+          background: #0f172a;
+        }
+        .rbc-day-bg,
+        .rbc-timeslot-group,
+        .rbc-time-slot,
+        .rbc-agenda-date-cell,
+        .rbc-agenda-time-cell,
+        .rbc-agenda-event-cell {
+          border-color: rgba(148, 163, 184, 0.12) !important;
+        }
+        .rbc-today {
+          background: rgba(16, 185, 129, 0.12) !important;
+        }
+        .rbc-off-range-bg {
+          background: rgba(15, 23, 42, 0.7);
+        }
+        .rbc-show-more {
+          color: #7dd3fc !important;
+          background: rgba(30, 64, 175, 0.18);
+          border: 1px solid rgba(125, 211, 252, 0.35);
+          border-radius: 999px;
+          padding: 2px 8px;
+          font-weight: 600;
+          letter-spacing: 0.02em;
+        }
+        .rbc-show-more:hover {
+          color: #e0f2fe !important;
+          background: rgba(30, 64, 175, 0.28);
+          border-color: rgba(125, 211, 252, 0.6);
+        }
+        .rbc-row-segment .rbc-event {
+          color: var(--event-text) !important;
+        }
         .rbc-overlay {
-          background: #ffffff !important;
-          border: 1px solid rgba(148, 163, 184, 0.35);
+          background: #0f172a !important;
+          border: 1px solid rgba(148, 163, 184, 0.18);
           border-radius: 18px;
-          box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+          box-shadow: 0 12px 30px rgba(2, 6, 23, 0.45);
           opacity: 1 !important;
           z-index: 9999 !important;
         }
         .rbc-overlay-header {
           padding: 10px 14px;
-          border-bottom: 1px solid rgba(15, 23, 42, 0.08);
-          color: #0f172a;
+          border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+          color: #e2e8f0;
           font-weight: 600;
-          background: #ffffff;
+          background: #0f172a;
         }
         .rbc-overlay .rbc-event {
-          border: 1px solid rgba(15, 23, 42, 0.08);
+          border: 1px solid rgba(148, 163, 184, 0.18);
           border-left: 4px solid var(--event-accent) !important;
           background-color: var(--event-bg) !important;
           color: var(--event-text) !important;
           opacity: 1 !important;
-          box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+          box-shadow: 0 6px 16px rgba(2, 6, 23, 0.35);
         }
         .rbc-overlay .rbc-event-content {
           opacity: 1 !important;
