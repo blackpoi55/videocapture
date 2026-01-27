@@ -149,7 +149,7 @@ function Section({ title, children }: any) {
     return (
         <div className="bg-[#b7cbe3] p-3 mb-2">
             <div className="font-semibold mb-2">{title}</div>
-            <div className="bg-[#b7cbe3] p-3">{children}</div>
+            <div className="bg-white p-3">{children}</div>
         </div>
     );
 }

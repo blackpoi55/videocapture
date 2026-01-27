@@ -6,6 +6,7 @@ import Box3 from "@/components/inputcase/Box3";
 import Box4 from "@/components/inputcase/Box4";
 import Box5 from "@/components/inputcase/Box5";
 import Box6 from "@/components/inputcase/Box6"; 
+import Box7 from "@/components/inputcase/Box7";
 import { getpersonhistorybyid } from "@/action/api";
 
 
@@ -20,6 +21,7 @@ console.log("dataaaaaaaaaaaaaaa",data)
       <Box4 />
       <Box5 />
       <Box6 />
+      <Box7 />
     </Suspense>
   );
 }
