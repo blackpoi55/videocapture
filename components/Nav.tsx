@@ -65,6 +65,10 @@ export default function Nav() {
     }
   };
 
+  if (cleanPath === "/login") {
+    return null;
+  }
+
   return (
     <nav
       className="sticky top-0 z-50 border-b border-slate-400/20 bg-slate-950/70 backdrop-blur-lg print:hidden"
