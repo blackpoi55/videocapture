@@ -1,15 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { alertErr, alertOk, confirmSwal } from "./alerts";
 import Swal from "sweetalert2";
 import { deleteEntry, humanSize, isImageType, listFiles, writeFile } from "./file-utils";
 import type { DirHandle, FileItem } from "./types";
 import { PillButton } from "./ui";
 import { Thumb } from "./Thumb";
-import { postreportimage, uploadMultiple } from "@/action/api";
+import { postreportimage, putreportimage, uploadMultiple } from "@/action/api";
 
 type SelectedImage = {
+  label?: string;
   name: string;
   description: string;
 };
@@ -17,6 +18,15 @@ type SelectedImage = {
 type TemplatePlacement = {
   x: number;
   y: number;
+};
+
+type InitialPicture = {
+  picturelabel?: string | null;
+  picturename?: string | null;
+  picturepath?: string | null;
+  description?: string | null;
+  x_axis?: string | number | null;
+  y_axis?: string | number | null;
 };
 
 const TEMPLATE_SRC = "/images/type/OPERATIVETEMPLATE1IMAGE.jpg";
@@ -34,6 +44,7 @@ export function ImagePickerModal(props: {
   refreshSignal?: number;
   templateSrc?: string | null;
   caseNumber?: string | null;
+  initialPictures?: InitialPicture[] | null;
 }) {
   const {
     open,
@@ -46,6 +57,7 @@ export function ImagePickerModal(props: {
     refreshSignal,
     templateSrc,
     caseNumber,
+    initialPictures,
   } = props;
   const [left, setLeft] = useState<FileItem[]>([]);
   const [right, setRight] = useState<FileItem[]>([]);
@@ -55,15 +67,19 @@ export function ImagePickerModal(props: {
   const [activeLabel, setActiveLabel] = useState("");
   const [placements, setPlacements] = useState<Record<string, TemplatePlacement>>({});
   const [uploadMap, setUploadMap] = useState<Record<string, unknown>>({});
+  const appliedPicturesRef = useRef<string | null>(null);
 
   const chosenNames = useMemo(() => new Set(right.map((x) => x.name)), [right]);
   const selectedNames = useMemo(() => new Set(selected.map((item) => item.name)), [selected]);
   const chooseMap = useMemo(() => new Map(right.map((item) => [item.name, item])), [right]);
-  const stepLabels = useMemo(() => selected.map((_, index) => getLabelForIndex(index)), [selected]);
+  const stepLabels = useMemo(
+    () => selected.map((item, index) => (item.label ? item.label : getLabelForIndex(index))),
+    [selected]
+  );
   const selectionPayload = useMemo(
     () =>
       selected.map((item, index) => ({
-        label: getLabelForIndex(index),
+        label: item.label ? item.label : getLabelForIndex(index),
         name: item.name,
         description: item.description || "",
         upload: uploadMap[item.name] ?? null,
@@ -95,6 +111,7 @@ export function ImagePickerModal(props: {
     }),
     [selectionPayload, placementPayload, resolvedTemplateSrc, caseNumber]
   );
+  const hasExistingPictures = useMemo(() => (initialPictures?.length ?? 0) > 0, [initialPictures]);
 
   const refresh = useCallback(async () => {
     if (!originalDir || !chooseDir) return;
@@ -120,7 +137,9 @@ export function ImagePickerModal(props: {
   const saveReportImages = useCallback(async () => {
     try {
       setBusy(true);
-      const response = await postreportimage(combinedPayload);
+      const response = hasExistingPictures
+        ? await putreportimage(combinedPayload)
+        : await postreportimage(combinedPayload);
       if ((response as { error?: unknown })?.error) {
         alertErr("บันทึกไม่สำเร็จ", (response as { message?: string })?.message || "unknown error");
         return;
@@ -140,8 +159,65 @@ export function ImagePickerModal(props: {
   }, [open, refresh, refreshSignal]);
 
   useEffect(() => {
-    setSelected((prev) => prev.filter((item) => chooseMap.has(item.name)));
-  }, [chooseMap]);
+    if (!open) {
+      appliedPicturesRef.current = null;
+      return;
+    }
+    const caseKey = caseNumber || "no-case";
+    if (appliedPicturesRef.current === caseKey) return;
+    appliedPicturesRef.current = caseKey;
+    if (!initialPictures || initialPictures.length === 0) {
+      setSelected([]);
+      setPlacements({});
+      setUploadMap({});
+      setActiveLabel("");
+      return;
+    }
+    const normalized = initialPictures
+      .map((item) => {
+        const label = (item.picturelabel || "").toString().trim().toUpperCase();
+        const name = item.picturename || item.picturepath || label || "Unknown";
+        const description = item.description || "";
+        const x = Number(item.x_axis);
+        const y = Number(item.y_axis);
+        return {
+          label,
+          name,
+          description,
+          path: item.picturepath || null,
+          x: Number.isFinite(x) ? x : null,
+          y: Number.isFinite(y) ? y : null,
+        };
+      })
+      .sort((a, b) => {
+        const aCode = a.label ? a.label.charCodeAt(0) : 999;
+        const bCode = b.label ? b.label.charCodeAt(0) : 999;
+        return aCode - bCode;
+      });
+    setSelected(normalized.map((item) => ({ label: item.label, name: item.name, description: item.description })));
+    setUploadMap(
+      normalized.reduce<Record<string, unknown>>((acc, item) => {
+        if (item.path) acc[item.name] = item.path;
+        return acc;
+      }, {})
+    );
+    setPlacements(
+      normalized.reduce<Record<string, TemplatePlacement>>((acc, item) => {
+        if (item.label && item.x !== null && item.y !== null) {
+          acc[item.label] = { x: item.x, y: item.y };
+        }
+        return acc;
+      }, {})
+    );
+    setActiveLabel(normalized[0]?.label || "");
+  }, [open, initialPictures, caseNumber]);
+
+  useEffect(() => {
+    setSelected((prev) => {
+      if (initialPictures && initialPictures.length > 0) return prev;
+      return prev.filter((item) => chooseMap.has(item.name));
+    });
+  }, [chooseMap, initialPictures]);
 
   useEffect(() => {
     if (!activeLabel) return;

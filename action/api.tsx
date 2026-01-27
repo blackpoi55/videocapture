@@ -92,3 +92,7 @@ export const uploadMultiple = (data: FormData) => {
 export const postreportimage = (data: unknown) => {
   return POST("/piturereports/create-many", data);
 };
+
+export const putreportimage = (data: unknown) => {
+  return PUT("/piturereports/update-many", data);
+};

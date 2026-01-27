@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Select from "react-select";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -337,6 +337,7 @@ type CaseDetail = {
   physician: string;
   note: string;
   operativetemplateimagepath: string;
+  pictures: Array<Record<string, unknown>>;
 };
 
 /** ---------------------------
@@ -387,6 +388,7 @@ type Opt = { value: string; label: string };
  *  Main Page
  *  --------------------------*/
 function PageContent() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const searchParams = useSearchParams();
 
@@ -716,6 +718,7 @@ function PageContent() {
       const note = normalizeText(row.note);
       const caseNo = normalizeText(row.casenumber);
       const operativetemplateimagepath = normalizeText(row.operativetemplateimagepath);
+      const pictures = Array.isArray(row.pictures) ? row.pictures : [];
       const date = parseApiDate(row.casedate);
       const cameraId = normalizeText(row.camera_id ?? row.cameraId ?? row.cameraid);
       const cameraName = normalizeText(row.camera_name);
@@ -752,6 +755,7 @@ function PageContent() {
         physician,
         note,
         operativetemplateimagepath,
+        pictures,
       });
       if (date) setPickedDate(date);
       if (hn) setHnInput(hn);
@@ -1931,6 +1935,11 @@ function PageContent() {
   }, [dateSelected, hnSelected, anSelected]);
 
   const showCaseDetails = Boolean(caseIdParam);
+  const canOpenReport = Boolean(caseDetail?.caseId);
+  const openReport = useCallback(() => {
+    if (!caseIdParam) return;
+    router.push(`/reportcase?caseId=${caseIdParam}`);
+  }, [router, caseIdParam]);
   const caseFolderReady = Boolean(originalDir && chooseDir);
   const caseDetailView = {
     caseId: caseDetail?.caseId || caseIdParam || "-",
@@ -2190,6 +2199,11 @@ function PageContent() {
                       <PillButton onClick={openPicker} disabled={!caseFolderReady}>
                         เลือก/จัดการรูป
                       </PillButton>
+                      {canOpenReport && (
+                        <PillButton onClick={openReport}>
+                          Report
+                        </PillButton>
+                      )}
                       {/* <PillButton onClick={refreshFiles} disabled={!originalDir}>
                         Refresh Files
                       </PillButton> */}
@@ -2522,6 +2536,7 @@ function PageContent() {
           refreshSignal={pickerRefreshTick}
           templateSrc={caseDetail?.operativetemplateimagepath || null}
           caseNumber={caseIdParam || ""}
+          initialPictures={(caseDetail?.pictures as Array<Record<string, unknown>>) || null}
         />
 
         <CameraAdjustModal open={camAdjustOpen} onClose={() => setCamAdjustOpen(false)}>
