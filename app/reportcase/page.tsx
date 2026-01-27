@@ -1,5 +1,6 @@
 // app/report_newCR/page.tsx
 import { Suspense } from "react";
+<<<<<<< HEAD
 import Box1 from "@/components/inputcase/Box1";
 import Box2 from "@/components/inputcase/Box2";
 import Box3 from "@/components/inputcase/Box3";
@@ -24,4 +25,13 @@ console.log("dataaaaaaaaaaaaaaa",data)
       <Box7 />
     </Suspense>
   );
+=======
+import ReportcasePage1 from "@/components/inputreport/ReportcasePage1";
+export default async function reportcasePage() {
+    return (
+        <Suspense fallback={<div>Loading...</div>}>
+            <ReportcasePage1/>
+        </Suspense>
+    );
+>>>>>>> 9cf2f6ee88e9a7cae6adb7a96c3031553334ecb0
 }

@@ -14,6 +14,7 @@ import {
   putreportimage,
   uploadMultiple,
 } from "@/action/api";
+import ReportcasePage1 from "../inputreport/ReportcasePage1";
 
 type SelectedImage = {
   label?: string;
@@ -230,7 +231,7 @@ export function ImagePickerModal(props: {
   useEffect(() => {
     if (!open) return;
     setStep(1);
-    refresh().catch(() => {});
+    refresh().catch(() => { });
     setReportForm({
       estimatedBloodLoss: "",
       therapy: "",
@@ -249,7 +250,7 @@ export function ImagePickerModal(props: {
 
   useEffect(() => {
     if (!open) return;
-    refresh().catch(() => {});
+    refresh().catch(() => { });
   }, [open, refresh, refreshSignal?.tick]);
 
   useEffect(() => {
@@ -278,7 +279,7 @@ export function ImagePickerModal(props: {
         })
       );
     };
-    reupload().catch(() => {});
+    reupload().catch(() => { });
     return () => {
       cancelled = true;
     };
@@ -472,7 +473,7 @@ export function ImagePickerModal(props: {
         .map((item) => ({ name: item.name, description: descriptionMap.get(item.name) || "" }));
       return [...kept, ...added];
     });
-    void Promise.all(right.map(async (item) => uploadFileToApi(await item.handle.getFile()))).catch(() => {});
+    void Promise.all(right.map(async (item) => uploadFileToApi(await item.handle.getFile()))).catch(() => { });
     if (right.length === 0) {
       setPreviewFile(null);
       return;
@@ -638,7 +639,7 @@ export function ImagePickerModal(props: {
       const descriptionMap = new Map(prev.map((item) => [item.name, item.description]));
       return right.map((item) => ({ name: item.name, description: descriptionMap.get(item.name) || "" }));
     });
-    void Promise.all(right.map(async (item) => uploadFileToApi(await item.handle.getFile()))).catch(() => {});
+    void Promise.all(right.map(async (item) => uploadFileToApi(await item.handle.getFile()))).catch(() => { });
   }, [right, uploadFileToApi]);
 
   const clearSelection = useCallback(() => {
@@ -721,10 +722,9 @@ export function ImagePickerModal(props: {
   const hasTooManyLabels = selected.length > 26;
 
   const stepButtonClass = (value: 1 | 2 | 3, disabled?: boolean) =>
-    `rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.26em] transition ${
-      step === value
-        ? "border-teal-300/70 bg-teal-500/20 text-teal-100"
-        : "border-white/10 text-white/60 hover:border-white/20 hover:text-white/80"
+    `rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.26em] transition ${step === value
+      ? "border-teal-300/70 bg-teal-500/20 text-teal-100"
+      : "border-white/10 text-white/60 hover:border-white/20 hover:text-white/80"
     } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`;
 
   const renderStep1 = () => (
@@ -739,9 +739,8 @@ export function ImagePickerModal(props: {
           {left.map((f) => (
             <div
               key={f.name}
-              className={`rounded-2xl border p-3 flex items-center gap-3 bg-white/[0.04] border-white/10 ${
-                chosenNames.has(f.name) ? "ring-2 ring-emerald-400/40" : ""
-              }`}
+              className={`rounded-2xl border p-3 flex items-center gap-3 bg-white/[0.04] border-white/10 ${chosenNames.has(f.name) ? "ring-2 ring-emerald-400/40" : ""
+                }`}
               draggable
               onDragStart={(e) => {
                 e.dataTransfer.setData("text/plain", f.name);
@@ -867,9 +866,8 @@ export function ImagePickerModal(props: {
               return (
                 <div
                   key={item.name}
-                  className={`rounded-2xl border p-3 flex items-center gap-3 bg-white/[0.04] border-white/10 cursor-pointer transition ${
-                    active ? "border-green-400 bg-green-500/10 ring-2 ring-green-400" : "hover:border-white/30"
-                  }`}
+                  className={`rounded-2xl border p-3 flex items-center gap-3 bg-white/[0.04] border-white/10 cursor-pointer transition ${active ? "border-green-400 bg-green-500/10 ring-2 ring-green-400" : "hover:border-white/30"
+                    }`}
                   onClick={() => {
                     if (file) setPreviewFile(file);
                     setActiveLabel(label);
@@ -932,7 +930,7 @@ export function ImagePickerModal(props: {
           </div>
         </div>
       </div>
-      
+
     </div>
   );
 
@@ -1130,11 +1128,10 @@ export function ImagePickerModal(props: {
           <button
             type="button"
             onClick={() => setReportPreview({ type: "template" })}
-            className={`w-full rounded-2xl border px-3 py-2 text-left text-xs transition ${
-              reportPreview?.type === "template"
-                ? "border-rose-400/70 bg-rose-500/15 text-rose-100"
-                : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20"
-            }`}
+            className={`w-full rounded-2xl border px-3 py-2 text-left text-xs transition ${reportPreview?.type === "template"
+              ? "border-rose-400/70 bg-rose-500/15 text-rose-100"
+              : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20"
+              }`}
           >
             <div className="flex items-center gap-3">
               <div className="relative h-12 w-12 rounded-xl border border-white/10 bg-black/40 overflow-hidden">
@@ -1172,66 +1169,29 @@ export function ImagePickerModal(props: {
           {right.map((file) => {
             const description = selected.find((item) => item.name === file.name)?.description?.trim();
             return (
-            <button
-              key={file.name}
-              type="button"
-              onClick={() => setReportPreview({ type: "file", file })}
-              className={`w-full rounded-2xl border px-3 py-2 text-left text-xs transition ${
-                reportPreview?.type === "file" && reportPreview.file?.name === file.name
+              <button
+                key={file.name}
+                type="button"
+                onClick={() => setReportPreview({ type: "file", file })}
+                className={`w-full rounded-2xl border px-3 py-2 text-left text-xs transition ${reportPreview?.type === "file" && reportPreview.file?.name === file.name
                   ? "border-rose-400/70 bg-rose-500/15 text-rose-100"
                   : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20"
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <Thumb file={file} />
-                <span className="truncate">{description || file.name}</span>
-              </div>
-            </button>
-          )})}
+                  }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Thumb file={file} />
+                  <span className="truncate">{description || file.name}</span>
+                </div>
+              </button>
+            )
+          })}
         </div>
       </div>
 
       <div className="flex-1 overflow-auto px-6 py-5">
-        <div className="max-w-[900px] space-y-5">
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-white/60">Estimated Blood Loss</div>
-            <input
-              value={reportForm.estimatedBloodLoss}
-              onChange={(e) => updateReportField("estimatedBloodLoss", e.target.value)}
-              placeholder="เช่น 50 ml"
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/90 outline-none"
-            />
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-white/60">Therapy</div>
-            <textarea
-              value={reportForm.therapy}
-              onChange={(e) => updateReportField("therapy", e.target.value)}
-              placeholder="รายละเอียดการรักษา"
-              rows={4}
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/90 outline-none"
-            />
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-white/60">Recommendation</div>
-            <textarea
-              value={reportForm.recommendation}
-              onChange={(e) => updateReportField("recommendation", e.target.value)}
-              placeholder="คำแนะนำเพิ่มเติม"
-              rows={4}
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/90 outline-none"
-            />
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-white/60">Note</div>
-            <textarea
-              value={reportForm.note}
-              onChange={(e) => updateReportField("note", e.target.value)}
-              placeholder="บันทึกอื่นๆ"
-              rows={3}
-              className="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white/90 outline-none"
-            />
-          </div>
+        <div className="mx-auto max-w-[980px] space-y-4"> 
+
+          <ReportcasePage1 />
         </div>
       </div>
       {previewLightbox && (

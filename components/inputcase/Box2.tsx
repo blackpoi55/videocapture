@@ -8,30 +8,34 @@ import React from "react";
  * Can be imported as a standalone block
  */
 export default function CRAnesthesiaMedicationBlock() {
+  const inputClass =
+    "w-full rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2 text-[12px] text-white/90 shadow-sm outline-none transition focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20";
+  const sectionTitle =
+    "text-[11px] uppercase tracking-[0.22em] text-white/50 font-semibold";
   return (
-    <section className="w-[800px] text-[11px]">
+    <section className="w-[860px] text-[12px]">
       {/* ANESTHESIA */}
-      <div className="bg-[#b7cbe3] px-4 py-3">
-        <div className="mb-2 font-semibold uppercase text-gray-600">Anesthesia</div>
+      <div className="rounded-t-[24px] border border-white/10 bg-slate-900/70 px-6 py-4 shadow-[0_18px_50px_rgba(2,6,23,0.5)]">
+        <div className={sectionTitle}>Anesthesia</div>
 
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-gray-600">
+        <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-white/70">
           <Check label="Topical" defaultChecked />
           <Check label="IV sedation" defaultChecked />
           <Check label="ET intubation" />
           <Check label="Tracheostomy" />
         </div>
 
-        <div className="mt-2 flex items-center gap-2 text-gray-600">
+        <div className="mt-3 flex items-center gap-2 text-white/70">
           <Check label="Other" />
-          <input className="input w-[360px] bg-white shadow-sm" />
+          <input className={`${inputClass} w-[360px]`} />
         </div>
       </div>
 
       {/* MEDICATION */}
-      <div className="bg-[#6f7f8e] px-4 py-3 text-gray-600 ">
-        <div className="mb-2 font-semibold uppercase">Medication</div>
+      <div className="border-x border-white/10 bg-slate-950/70 px-6 py-4 text-white/70">
+        <div className={sectionTitle}>Medication</div>
 
-        <div className="grid grid-cols-3 gap-y-2">
+        <div className="mt-3 grid grid-cols-3 gap-y-3">
           <MedRow label="Buscopan" unit="mg." checked value="15" />
           <MedRow label="Domicum" unit="mg." />
           <MedRow label="Propofol" unit="mg." />
@@ -41,20 +45,20 @@ export default function CRAnesthesiaMedicationBlock() {
           <MedRow label="" unit="" />
         </div>
 
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-3 flex items-center gap-2">
           <Check label="Other" />
-          <input className="input w-full bg-white shadow-sm" />
+          <input className={inputClass} />
         </div>
       </div>
 
       {/* INDICATION */}
-      <div className="bg-[#b7cbe3] px-4 py-3">
-        <div className="mb-1 font-semibold text-gray-600">
-          <span className="mr-1 text-red-600">*</span>
+      <div className="rounded-b-[24px] border border-white/10 bg-slate-900/70 px-6 py-4 shadow-[0_18px_50px_rgba(2,6,23,0.5)]">
+        <div className="mb-2 text-[11px] uppercase tracking-[0.22em] text-white/50">
+          <span className="mr-1 text-rose-400">*</span>
           INDICATION
         </div>
         <input
-          className="input w-full bg-white shadow-sm text-red-300"
+          className={`${inputClass} text-rose-200`}
           defaultValue="Enteroinvasive Escherichia coli infection A04.2"
         />
       </div>
@@ -71,8 +75,8 @@ function Check({
   defaultChecked?: boolean;
 }) {
   return (
-    <label className="flex items-center gap-1">
-      <input type="checkbox" defaultChecked={defaultChecked} />
+    <label className="flex items-center gap-2 text-[12px] text-white/70">
+      <input type="checkbox" defaultChecked={defaultChecked} className="h-4 w-4 rounded border-white/20 accent-teal-500" />
       <span>{label}</span>
     </label>
   );
@@ -90,18 +94,14 @@ function MedRow({
   value?: string;
 }) {
   return (
-    <div className="flex items-center gap-1">
-      {label && <input type="checkbox" defaultChecked={checked} />}
-      <span className="w-[70px]">{label}</span>
+    <div className="flex items-center gap-2 text-[12px] text-white/70">
+      {label && <input type="checkbox" defaultChecked={checked} className="h-4 w-4 rounded border-white/20 accent-teal-500" />}
+      <span className="w-[80px]">{label}</span>
       <input
-        className="input w-[40px] text-black"
+        className="w-[60px] rounded-xl border border-white/10 bg-slate-900/70 px-2 py-1 text-[12px] text-white/90 shadow-sm outline-none transition focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20"
         defaultValue={value}
       />
-      <span className="w-[30px]">{unit}</span>
+      <span className="w-[36px] text-white/50">{unit}</span>
     </div>
   );
 }
-
-/* Tailwind helper (global)
-.input { @apply rounded-sm border px-1 py-0.5 text-[11px]; }
-*/
