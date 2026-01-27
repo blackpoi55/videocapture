@@ -533,7 +533,7 @@ export const CameraSection = ({ active }: { active: boolean }) => {
               </select>
             </label>
 
-            <div className="relative aspect-[16/10] overflow-hidden rounded-2xl border border-slate-200 bg-slate-900">
+            <div className="relative aspect-video overflow-hidden rounded-2xl border border-slate-200 bg-slate-900">
               {!cameraOn && (
                 <div className="absolute inset-0 flex items-center justify-center text-xs uppercase tracking-[0.3em] text-slate-400">
                   Camera Off
@@ -541,7 +541,7 @@ export const CameraSection = ({ active }: { active: boolean }) => {
               )}
               <video
                 ref={videoRef}
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain"
                 style={{ transform: previewCropTransform, transformOrigin: "top left", filter: previewFilter }}
                 muted
                 playsInline

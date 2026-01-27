@@ -14,7 +14,7 @@ export function ImageEditorModal(props: {
   onClose: () => void;
   file: FileItem | null;
   chooseDir: DirHandle | null;
-  onSaved: () => Promise<void>;
+  onSaved: (info: { mode: "single" | "all"; fileName?: string }) => Promise<void>;
 }) {
   const { open, onClose, file, chooseDir, onSaved } = props;
 
@@ -796,7 +796,7 @@ export function ImageEditorModal(props: {
 
       const fh = await chooseDir.getFileHandle(file.name, { create: true });
       await writeFile(fh, blob);
-      await onSaved();
+      await onSaved({ mode: "single", fileName: file.name });
       alertOk("บันทึกทับไฟล์ใน choose แล้ว");
       onClose();
     } catch (e: any) {
@@ -882,7 +882,7 @@ export function ImageEditorModal(props: {
       }
 
       batchCanvas.dispose();
-      await onSaved();
+      await onSaved({ mode: "all" });
       alertOk("บันทึกทุกไฟล์แล้ว", `${savedCount} ไฟล์`);
       onClose();
     } catch (e: any) {
@@ -904,7 +904,7 @@ export function ImageEditorModal(props: {
           </div>
           <div className="flex gap-2">
             <PillButton onClick={saveAllAdjust} disabled={busy}>
-              Save Adjust all images in choose
+              Save Adjust all images
             </PillButton>
             <PillButton onClick={save} disabled={busy}>
               Save
