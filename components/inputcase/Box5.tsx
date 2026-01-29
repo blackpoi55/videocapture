@@ -38,7 +38,7 @@ export default function FindingsSection() {
   };
 
   return (
-    <div className="w-[860px] rounded-[24px] border border-white/10 bg-slate-900/70 shadow-[0_18px_50px_rgba(2,6,23,0.55)]">
+    <div className="w-[920px] rounded-[24px] border border-white/10 bg-slate-900/70 shadow-[0_18px_50px_rgba(2,6,23,0.55)]">
 
       {/* HEADER */}
       <div className="flex items-center justify-between border-b border-white/10 bg-slate-950/60 px-6 py-3 text-[11px] font-semibold text-white/70">

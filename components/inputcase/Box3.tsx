@@ -11,7 +11,7 @@ export default function CRPreDiagnosisBlock() {
   const inputClass =
     "w-full rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2 text-[12px] text-white/90 shadow-sm outline-none transition focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20";
   return (
-    <section className="w-[860px] rounded-[24px] border border-white/10 bg-slate-900/70 px-6 py-4 text-[12px] shadow-[0_18px_50px_rgba(2,6,23,0.55)]">
+    <section className="w-[920px] rounded-[24px] border border-white/10 bg-slate-900/70 px-6 py-4 text-[12px] shadow-[0_18px_50px_rgba(2,6,23,0.55)]">
       <div className="mb-3 text-[11px] uppercase tracking-[0.24em] text-white/50">Pre-diagnosis</div>
       <div className="grid grid-cols-[180px_1fr_28px] gap-y-3 items-center">
         {/* Dx1 */}

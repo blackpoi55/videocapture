@@ -7,6 +7,7 @@ import Box4 from '../inputcase/Box4'
 import Box5 from '../inputcase/Box5'
 import Box6 from '../inputcase/Box6'
 import { getpersonhistorybyid } from '@/action/api'
+import Box7 from '../inputcase/Box7'
 
 function ReportcasePage1() {
     useEffect(() => {
@@ -26,6 +27,7 @@ function ReportcasePage1() {
                 <Box4 />
                 <Box5 />
                 <Box6 />
+                <Box7 />
             </div>
         </div>
     )

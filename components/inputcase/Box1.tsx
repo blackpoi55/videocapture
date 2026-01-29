@@ -10,7 +10,7 @@ export default function HighlightedInputBlock() {
   const inputClass =
     "w-full rounded-2xl border border-white/10 bg-slate-900/70 px-3 py-2 text-[12px] text-white/90 shadow-sm outline-none transition focus:border-teal-400/70 focus:ring-2 focus:ring-teal-400/20";
   return (
-    <section className="w-[860px] rounded-[28px] border border-white/10 bg-slate-900/70 shadow-[0_30px_80px_rgba(2,6,23,0.6)] backdrop-blur-xl">
+    <section className="w-[920px] rounded-[28px] border border-white/10 bg-slate-900/70 shadow-[0_30px_80px_rgba(2,6,23,0.6)] backdrop-blur-xl">
       
       {/* Content */}
       <div className="grid gap-6 px-6 py-6 text-white/80">

@@ -13,7 +13,7 @@ export default function CRAnesthesiaMedicationBlock() {
   const sectionTitle =
     "text-[11px] uppercase tracking-[0.22em] text-white/50 font-semibold";
   return (
-    <section className="w-[860px] text-[12px]">
+    <section className="w-[920px] text-[12px]">
       {/* ANESTHESIA */}
       <div className="rounded-t-[24px] border border-white/10 bg-slate-900/70 px-6 py-4 shadow-[0_18px_50px_rgba(2,6,23,0.5)]">
         <div className={sectionTitle}>Anesthesia</div>
